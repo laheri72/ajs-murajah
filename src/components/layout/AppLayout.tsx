@@ -1,4 +1,6 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { BedDouble, Building2, ClipboardList, Home, LogOut, Target } from "lucide-react";
+import { useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { apiFetch } from "../../lib/api";
 import { cn } from "../../lib/utils";
@@ -17,11 +19,29 @@ export function AppLayout() {
   const user = useAuthStore((state) => state.user);
   const setUser = useAuthStore((state) => state.setUser);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   async function logout() {
-    await apiFetch("/api/auth/logout", { method: "POST" }).catch(() => null);
-    setUser(null);
-    navigate("/login");
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+    try {
+      await apiFetch("/api/auth/logout", { method: "POST" });
+    } catch {
+      // Still clear client state so the user is not trapped in the app if the
+      // network request fails. The next protected request will be rejected.
+    } finally {
+      setUser(null);
+      queryClient.setQueryData(["session"], { user: null });
+      queryClient.removeQueries({ queryKey: ["admin-analytics"] });
+      queryClient.removeQueries({ queryKey: ["room-dashboard"] });
+      queryClient.removeQueries({ queryKey: ["rooms"] });
+      queryClient.removeQueries({ queryKey: ["floors"] });
+      queryClient.removeQueries({ queryKey: ["targets"] });
+      queryClient.removeQueries({ queryKey: ["activity"] });
+      navigate("/login", { replace: true });
+      setIsLoggingOut(false);
+    }
   }
 
   const isAdmin = user?.role === "admin";
@@ -34,9 +54,9 @@ export function AppLayout() {
             <p className="text-base font-bold text-primary">Quran Murajah Tracker</p>
             <p className="truncate text-xs text-muted-foreground">{user?.role === "room" ? user.roomName : "Maskan Admin"}</p>
           </Link>
-          <Button variant="secondary" size="sm" onClick={logout}>
+          <Button variant="secondary" size="sm" onClick={logout} disabled={isLoggingOut}>
             <LogOut className="h-4 w-4" />
-            Logout
+            {isLoggingOut ? "Logging out..." : "Logout"}
           </Button>
         </div>
       </header>

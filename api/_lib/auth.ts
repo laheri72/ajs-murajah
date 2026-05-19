@@ -42,6 +42,7 @@ export function clearSessionCookie(res: VercelResponse) {
       secure: process.env.COOKIE_SECURE !== "false",
       path: "/",
       maxAge: 0,
+      expires: new Date(0),
     }),
   );
 }
