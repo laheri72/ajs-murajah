@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { parse, serialize } from "cookie";
 import jwt from "jsonwebtoken";
-import { unauthorized } from "./http";
+import { unauthorized } from "./http.js";
 
 const COOKIE_NAME = "murajah_session";
 const MAX_AGE_SECONDS = 60 * 60 * 24 * 14;

@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { requireAdmin } from "../_lib/auth";
-import { percent, startOfWeek } from "../_lib/analytics";
-import { badRequest, json, methodNotAllowed } from "../_lib/http";
-import { getSupabaseAdmin } from "../_lib/supabase";
+import { requireAdmin } from "../_lib/auth.js";
+import { percent, startOfWeek } from "../_lib/analytics.js";
+import { badRequest, json, methodNotAllowed } from "../_lib/http.js";
+import { getSupabaseAdmin } from "../_lib/supabase.js";
 
 type RoomRow = {
   id: string;

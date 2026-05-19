@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { requireRoom } from "../_lib/auth";
-import { badRequest, json, methodNotAllowed, readBody } from "../_lib/http";
-import { getSupabaseAdmin } from "../_lib/supabase";
-import { getRoomDashboard } from "./dashboard";
+import { requireRoom } from "../_lib/auth.js";
+import { badRequest, json, methodNotAllowed, readBody } from "../_lib/http.js";
+import { getSupabaseAdmin } from "../_lib/supabase.js";
+import { getRoomDashboard } from "./dashboard.js";
 
 const RUB_PER_JUZ = 4;
 const TOTAL_JUZ = 30;

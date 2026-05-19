@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { requireRoom } from "../_lib/auth";
-import { percent, startOfWeek } from "../_lib/analytics";
-import { badRequest, json, methodNotAllowed } from "../_lib/http";
-import { getSupabaseAdmin } from "../_lib/supabase";
+import { requireRoom } from "../_lib/auth.js";
+import { percent, startOfWeek } from "../_lib/analytics.js";
+import { badRequest, json, methodNotAllowed } from "../_lib/http.js";
+import { getSupabaseAdmin } from "../_lib/supabase.js";
 
 export async function getRoomDashboard(roomId: string) {
   const supabase = getSupabaseAdmin();

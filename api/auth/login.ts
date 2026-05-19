@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import bcrypt from "bcryptjs";
-import { signSession, setSessionCookie } from "../_lib/auth";
-import { badRequest, json, methodNotAllowed, readBody } from "../_lib/http";
-import { getSupabaseAdmin } from "../_lib/supabase";
+import { signSession, setSessionCookie } from "../_lib/auth.js";
+import { badRequest, json, methodNotAllowed, readBody } from "../_lib/http.js";
+import { getSupabaseAdmin } from "../_lib/supabase.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return methodNotAllowed(res);
