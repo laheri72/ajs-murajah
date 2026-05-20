@@ -1,9 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, CheckCircle2, Clock, RotateCcw, Save, Target, X } from "lucide-react";
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { RubGrid } from "../../components/quran/RubGrid";
 import { EmptyState } from "../../components/states/EmptyState";
-import { LoadingState } from "../../components/states/LoadingState";
 import { Button } from "../../components/ui/Button";
 import { Card, CardHeader, CardTitle } from "../../components/ui/Card";
 import { Progress } from "../../components/ui/Progress";
@@ -14,57 +13,56 @@ import type { RoomDashboardData } from "../../types/domain";
 
 export function RoomDashboard() {
   const queryClient = useQueryClient();
-  const pendingMutationCount = useRef(0);
-  const serverMutationQueue = useRef<Promise<unknown>>(Promise.resolve());
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const syncInFlight = useRef(false);
+  const pendingSync = useRef(false);
+  const hasUnsavedChanges = useRef(false);
+  const latestCompletedRub = useRef<number[]>([]);
+  const lastSavedCompletedRub = useRef<number[]>([]);
+  const flushSyncRef = useRef<() => void>(() => undefined);
   const [multiSelect, setMultiSelect] = useState(false);
   const [selectedRub, setSelectedRub] = useState<number[]>([]);
-  const [savingRub, setSavingRub] = useState<number[]>([]);
+  const [localCompletedRub, setLocalCompletedRub] = useState<number[] | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   const dashboard = useQuery({
     queryKey: ["room-dashboard"],
     queryFn: () => apiFetch<RoomDashboardData>("/api/room/dashboard"),
   });
 
-  const progress = useMutation({
-    mutationFn: (rubNumbers: number[]) => {
-      const run = serverMutationQueue.current
-        .catch(() => undefined)
-        .then(() => apiFetch<RoomDashboardData>("/api/room/progress", { method: "POST", body: JSON.stringify({ rubNumbers }) }));
-      serverMutationQueue.current = run.catch(() => undefined);
-      return run;
-    },
-    onMutate: async (rubNumbers) => {
-      pendingMutationCount.current += 1;
-      setSavingRub((current) => [...new Set([...current, ...rubNumbers])]);
-      await queryClient.cancelQueries({ queryKey: ["room-dashboard"] });
-      const previous = queryClient.getQueryData<RoomDashboardData>(["room-dashboard"]);
-      if (previous) {
-        queryClient.setQueryData<RoomDashboardData>(["room-dashboard"], toggleDashboardRub(previous, rubNumbers));
-      }
-      return { previous };
-    },
-    onError: (_error, _rubNumbers, context) => {
-      if (!context?.previous) return;
-      if (pendingMutationCount.current <= 1) {
-        queryClient.setQueryData(["room-dashboard"], context.previous);
-        return;
-      }
-      queryClient.setQueryData<RoomDashboardData>(["room-dashboard"], (current) => (current ? toggleDashboardRub(current, _rubNumbers) : context.previous));
-    },
-    onSuccess: () => {
-      setSelectedRub([]);
-      setMultiSelect(false);
-    },
-    onSettled: (_data, _error, rubNumbers) => {
-      pendingMutationCount.current = Math.max(0, pendingMutationCount.current - 1);
-      setSavingRub((current) => current.filter((rub) => !rubNumbers.includes(rub)));
-      if (pendingMutationCount.current === 0) {
-        queryClient.invalidateQueries({ queryKey: ["room-dashboard"] });
-      }
-    },
+  const serverData = dashboard.data;
+
+  useEffect(() => {
+    if (!serverData || hasUnsavedChanges.current || syncInFlight.current) return;
+    latestCompletedRub.current = serverData.completedRub;
+    lastSavedCompletedRub.current = serverData.completedRub;
+    setLocalCompletedRub(serverData.completedRub);
+  }, [serverData]);
+
+  useEffect(() => {
+    flushSyncRef.current = flushProgressSync;
   });
 
-  const data = dashboard.data;
+  useEffect(() => {
+    function flushBeforeLeaving() {
+      if (document.visibilityState === "hidden" && hasUnsavedChanges.current) {
+        flushSyncRef.current();
+      }
+    }
+
+    document.addEventListener("visibilitychange", flushBeforeLeaving);
+    return () => {
+      document.removeEventListener("visibilitychange", flushBeforeLeaving);
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    };
+  }, []);
+
+  const completedRub = useMemo(() => localCompletedRub ?? serverData?.completedRub ?? [], [localCompletedRub, serverData?.completedRub]);
+  const data = useMemo(
+    () => (serverData ? withCompletedRub(serverData, completedRub, lastSavedCompletedRub.current) : undefined),
+    [serverData, completedRub],
+  );
   const activity = useMemo(() => data?.activity ?? [], [data]);
   const completedSet = useMemo(() => new Set(data?.completedRub ?? []), [data?.completedRub]);
   const unlockedJuz = useMemo(() => {
@@ -93,11 +91,80 @@ export function RoomDashboard() {
     }
     return null;
   }, [completedSet, unlockedJuz]);
-  const latestCompletedRub = data?.completedRub[data.completedRub.length - 1] ?? null;
+  const latestCompletedRubNumber = data?.completedRub[data.completedRub.length - 1] ?? null;
   const selectedCount = selectedRub.length;
   const selectedCompleteCount = selectedRub.filter((rub) => !completedSet.has(rub)).length;
   const selectedUndoCount = selectedCount - selectedCompleteCount;
   const weeklyPercent = data ? Math.min(100, (data.stats.weeklyCompleted / Math.max(1, data.stats.weeklyTarget)) * 100) : 0;
+
+  function scheduleProgressSync(nextCompletedRub: number[], delay = 800) {
+    const sorted = sortRub(nextCompletedRub);
+    latestCompletedRub.current = sorted;
+    hasUnsavedChanges.current = true;
+    setSyncError(null);
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      flushProgressSync();
+    }, delay);
+  }
+
+  async function flushProgressSync() {
+    if (!hasUnsavedChanges.current) return;
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+    if (syncInFlight.current) {
+      pendingSync.current = true;
+      return;
+    }
+
+    const payload = latestCompletedRub.current;
+    syncInFlight.current = true;
+    setIsSyncing(true);
+    try {
+      const syncedData = await apiFetch<RoomDashboardData>("/api/room/progress", {
+        method: "POST",
+        body: JSON.stringify({ completedRub: payload }),
+      });
+      queryClient.setQueryData(["room-dashboard"], syncedData);
+      lastSavedCompletedRub.current = syncedData.completedRub;
+
+      if (arraysEqual(payload, latestCompletedRub.current)) {
+        hasUnsavedChanges.current = false;
+        setLocalCompletedRub(syncedData.completedRub);
+      } else {
+        pendingSync.current = true;
+      }
+    } catch (error) {
+      hasUnsavedChanges.current = false;
+      const message = error instanceof Error ? error.message : "Could not save progress";
+      setSyncError(message);
+      const refreshed = await dashboard.refetch();
+      if (refreshed.data) {
+        latestCompletedRub.current = refreshed.data.completedRub;
+        lastSavedCompletedRub.current = refreshed.data.completedRub;
+        setLocalCompletedRub(refreshed.data.completedRub);
+      }
+    } finally {
+      syncInFlight.current = false;
+      if (pendingSync.current && !arraysEqual(lastSavedCompletedRub.current, latestCompletedRub.current)) {
+        pendingSync.current = false;
+        flushProgressSync();
+      } else {
+        pendingSync.current = false;
+        setIsSyncing(false);
+      }
+    }
+  }
+
+  function applyLocalRubChange(rubNumbers: number[], flushDelay = 800) {
+    setLocalCompletedRub((current) => {
+      const next = toggleRubNumbers(current ?? data?.completedRub ?? [], rubNumbers);
+      scheduleProgressSync(next, flushDelay);
+      return next;
+    });
+  }
 
   function handleRubClick(rub: number) {
     const juz = Math.ceil(rub / RUB_PER_JUZ);
@@ -106,12 +173,16 @@ export function RoomDashboard() {
       setSelectedRub((current) => (current.includes(rub) ? current.filter((item) => item !== rub) : [...current, rub]));
       return;
     }
-    progress.mutate([rub]);
+    applyLocalRubChange([rub]);
   }
 
   function saveSelectedRub() {
     const allowedRub = selectedRub.filter((rub) => Math.ceil(rub / RUB_PER_JUZ) <= unlockedJuz && !lockedRub.includes(rub));
-    if (allowedRub.length) progress.mutate(allowedRub);
+    if (allowedRub.length) {
+      applyLocalRubChange(allowedRub, 0);
+      setSelectedRub([]);
+      setMultiSelect(false);
+    }
   }
 
   function closeMultiSelect() {
@@ -119,7 +190,7 @@ export function RoomDashboard() {
     setSelectedRub([]);
   }
 
-  if (dashboard.isLoading) return <LoadingState label="Loading room progress..." />;
+  if (dashboard.isLoading) return <RoomDashboardSkeleton />;
   if (dashboard.isError || !data) return <EmptyState title="Room dashboard unavailable" description="Refresh the page or sign in again." />;
 
   return (
@@ -153,13 +224,13 @@ export function RoomDashboard() {
               <p className="mt-1 text-lg font-semibold">{data.stats.totalCompleted} Rub' done</p>
               <div className="mt-4 flex flex-wrap gap-2 lg:justify-center">
                 {nextRub ? (
-                  <Button className="bg-white text-primary hover:bg-emerald-50" disabled={progress.isPending} onClick={() => progress.mutate([nextRub])}>
+                  <Button className="bg-white text-primary hover:bg-emerald-50" onClick={() => applyLocalRubChange([nextRub])}>
                     Rub {nextRub}
                     <ArrowRight className="h-4 w-4" />
                   </Button>
                 ) : null}
-                {latestCompletedRub ? (
-                  <Button variant="secondary" disabled={progress.isPending} onClick={() => progress.mutate([latestCompletedRub])}>
+                {latestCompletedRubNumber ? (
+                  <Button variant="secondary" onClick={() => applyLocalRubChange([latestCompletedRubNumber])}>
                     <RotateCcw className="h-4 w-4" />
                     Undo
                   </Button>
@@ -198,7 +269,7 @@ export function RoomDashboard() {
                 <X className="h-5 w-5" />
               </Button>
             ) : null}
-            <Button variant={multiSelect ? "primary" : "secondary"} onClick={() => (multiSelect ? saveSelectedRub() : setMultiSelect(true))} disabled={(multiSelect && !selectedCount) || progress.isPending}>
+            <Button variant={multiSelect ? "primary" : "secondary"} onClick={() => (multiSelect ? saveSelectedRub() : setMultiSelect(true))} disabled={multiSelect && !selectedCount}>
               {multiSelect ? <Save className="h-4 w-4" /> : null}
               {multiSelect ? `Save ${selectedCount}` : "Select"}
             </Button>
@@ -212,8 +283,9 @@ export function RoomDashboard() {
               <MiniStat label="Selected" value={selectedCount} />
             </div>
           ) : null}
-          {progress.isError ? <p className="mb-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{progress.error.message}</p> : null}
-          <RubGrid completedRub={data.completedRub} selectedRub={selectedRub} multiSelect={multiSelect} lockedJuz={lockedJuz} lockedRub={lockedRub} savingRub={savingRub} onRubClick={handleRubClick} />
+          {syncError ? <p className="mb-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{syncError}</p> : null}
+          {isSyncing ? <p className="mb-3 text-xs text-muted-foreground">Saving changes...</p> : null}
+          <RubGrid completedRub={data.completedRub} selectedRub={selectedRub} multiSelect={multiSelect} lockedJuz={lockedJuz} lockedRub={lockedRub} savingRub={[]} onRubClick={handleRubClick} />
         </div>
       </Card>
 
@@ -243,21 +315,45 @@ export function RoomDashboard() {
   );
 }
 
-function toggleDashboardRub(data: RoomDashboardData, rubNumbers: number[]) {
-  const next = new Set(data.completedRub);
+function toggleRubNumbers(completedRub: number[], rubNumbers: number[]) {
+  const next = new Set(completedRub);
   rubNumbers.forEach((rub) => (next.has(rub) ? next.delete(rub) : next.add(rub)));
-  const totalCompleted = next.size;
+  return sortRub([...next]);
+}
+
+function withCompletedRub(data: RoomDashboardData, completedRub: number[], lastSavedRub: number[]) {
+  const totalCompleted = completedRub.length;
   const totalTarget = data.stats.totalTarget || TOTAL_RUB;
+  const newlyCompleted = completedRub.filter((rub) => !lastSavedRub.includes(rub)).length;
   return {
     ...data,
-    completedRub: [...next].sort((a, b) => a - b),
+    completedRub,
     stats: {
       ...data.stats,
       totalCompleted,
       completionPercentage: Math.min(100, (totalCompleted / totalTarget) * 100),
+      weeklyCompleted: data.stats.weeklyCompleted + newlyCompleted,
       remainingTarget: Math.max(0, data.stats.totalTarget - totalCompleted),
     },
   };
+}
+
+function sortRub(numbers: number[]) {
+  return [...numbers].sort((a, b) => a - b);
+}
+
+function arraysEqual(left: number[], right: number[]) {
+  if (left.length !== right.length) return false;
+  return left.every((value, index) => value === right[index]);
+}
+
+function RoomDashboardSkeleton() {
+  return (
+    <div className="grid gap-5">
+      <div className="h-72 animate-pulse rounded-xl bg-muted" />
+      <div className="h-[520px] animate-pulse rounded-xl bg-muted" />
+    </div>
+  );
 }
 
 function HeroStat({ icon, label, value }: { icon: ReactNode; label: string; value: ReactNode }) {

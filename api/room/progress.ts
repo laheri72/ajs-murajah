@@ -8,14 +8,6 @@ const RUB_PER_JUZ = 4;
 const TOTAL_JUZ = 30;
 const SESSION_WINDOW_MINUTES = 15;
 
-function getJuz(rubNumber: number) {
-  return Math.ceil(rubNumber / RUB_PER_JUZ);
-}
-
-function getEndOfJuz(rubNumber: number) {
-  return getJuz(rubNumber) * RUB_PER_JUZ;
-}
-
 function getUnlockedJuz(completed: Set<number>) {
   for (let juz = 1; juz <= TOTAL_JUZ; juz += 1) {
     const start = (juz - 1) * RUB_PER_JUZ + 1;
@@ -26,20 +18,16 @@ function getUnlockedJuz(completed: Set<number>) {
   return TOTAL_JUZ;
 }
 
-function validateLadderAction(rubNumber: number, completed: Set<number>) {
-  const isCompleted = completed.has(rubNumber);
-  if (!isCompleted) {
-    const unlockedJuz = getUnlockedJuz(completed);
-    if (getJuz(rubNumber) !== unlockedJuz) {
-      return `Juz ${getJuz(rubNumber)} is locked. Complete Juz ${unlockedJuz} first.`;
+function validateCompletedRubSet(completed: Set<number>) {
+  let foundIncompleteJuz = false;
+  for (let juz = 1; juz <= TOTAL_JUZ; juz += 1) {
+    const start = (juz - 1) * RUB_PER_JUZ + 1;
+    const units = Array.from({ length: RUB_PER_JUZ }, (_, index) => start + index);
+    const completedInJuz = units.filter((rub) => completed.has(rub)).length;
+    if (foundIncompleteJuz && completedInJuz > 0) {
+      return `Juz ${juz} is locked. Complete Juz ${getUnlockedJuz(completed)} first.`;
     }
-    return null;
-  }
-
-  const endOfJuz = getEndOfJuz(rubNumber);
-  const hasLaterProgress = [...completed].some((completedRub) => completedRub > endOfJuz);
-  if (hasLaterProgress) {
-    return "Undo later Juz progress before changing this Juz.";
+    if (completedInJuz < RUB_PER_JUZ) foundIncompleteJuz = true;
   }
   return null;
 }
@@ -88,31 +76,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const session = requireRoom(req, res);
   if (!session) return;
 
-  const { rubNumbers } = readBody<{ rubNumbers?: number[] }>(req);
-  const uniqueRub = [...new Set(rubNumbers ?? [])].filter((rub) => Number.isInteger(rub) && rub >= 1 && rub <= 120);
-  if (!uniqueRub.length) return badRequest(res, "Select at least one valid Rub' unit");
+  const { completedRub, rubNumbers } = readBody<{ completedRub?: number[]; rubNumbers?: number[] }>(req);
 
   const supabase = getSupabaseAdmin();
   const currentProgress = await supabase.from("room_rub_progress").select("rub_number").eq("room_id", session.id);
   if (currentProgress.error) return badRequest(res, currentProgress.error.message);
 
-  const completed = new Set((currentProgress.data ?? []).map((row) => row.rub_number));
-  const completedRubNumbers: number[] = [];
-  const undoneRubNumbers: number[] = [];
+  const currentCompleted = new Set((currentProgress.data ?? []).map((row) => row.rub_number));
+  const targetCompleted = Array.isArray(completedRub)
+    ? new Set(completedRub.filter((rub) => Number.isInteger(rub) && rub >= 1 && rub <= 120))
+    : new Set(currentCompleted);
 
-  for (const rubNumber of uniqueRub) {
-    const validationError = validateLadderAction(rubNumber, completed);
-    if (validationError) return badRequest(res, validationError);
-
-    const action = completed.has(rubNumber) ? "undo" : "complete";
-    if (action === "undo") {
-      completed.delete(rubNumber);
-      undoneRubNumbers.push(rubNumber);
-    } else {
-      completed.add(rubNumber);
-      completedRubNumbers.push(rubNumber);
-    }
+  if (!Array.isArray(completedRub)) {
+    const uniqueRub = [...new Set(rubNumbers ?? [])].filter((rub) => Number.isInteger(rub) && rub >= 1 && rub <= 120);
+    if (!uniqueRub.length) return badRequest(res, "Send completedRub or select at least one valid Rub' unit");
+    uniqueRub.forEach((rub) => (targetCompleted.has(rub) ? targetCompleted.delete(rub) : targetCompleted.add(rub)));
   }
+
+  const validationError = validateCompletedRubSet(targetCompleted);
+  if (validationError) return badRequest(res, validationError);
+
+  const completedRubNumbers = sortRub([...targetCompleted].filter((rub) => !currentCompleted.has(rub)));
+  const undoneRubNumbers = sortRub([...currentCompleted].filter((rub) => !targetCompleted.has(rub)));
 
   if (undoneRubNumbers.length) {
     const deleted = await supabase.from("room_rub_progress").delete().eq("room_id", session.id).in("rub_number", undoneRubNumbers);
@@ -122,6 +107,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (completedRubNumbers.length) {
     const inserted = await supabase.from("room_rub_progress").insert(completedRubNumbers.map((rubNumber) => ({ room_id: session.id, rub_number: rubNumber })));
     if (inserted.error) return badRequest(res, inserted.error.message);
+  }
+
+  if (!completedRubNumbers.length && !undoneRubNumbers.length) {
+    return json(res, 200, await getRoomDashboard(session.id));
   }
 
   const now = new Date();
