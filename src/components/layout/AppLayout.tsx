@@ -5,6 +5,7 @@ import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { apiFetch } from "../../lib/api";
 import { cn } from "../../lib/utils";
 import { useAuthStore } from "../../stores/auth-store";
+import { useProgressSyncStore } from "../../stores/progress-sync-store";
 import { Button } from "../ui/Button";
 
 const adminNav = [
@@ -22,9 +23,10 @@ export function AppLayout() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const isRoomProgressSaving = useProgressSyncStore((state) => state.isRoomProgressSaving);
 
   async function logout() {
-    if (isLoggingOut) return;
+    if (isLoggingOut || isRoomProgressSaving) return;
     setIsLoggingOut(true);
     try {
       await apiFetch("/api/auth/logout", { method: "POST" });
@@ -55,9 +57,9 @@ export function AppLayout() {
             <p className="text-base font-bold text-primary">Quran Maqarat Tracker</p>
             <p className="truncate text-xs text-muted-foreground">{user?.role === "room" ? user.roomName : "Maskan Admin"}</p>
           </Link>
-          <Button variant="secondary" size="sm" onClick={logout} disabled={isLoggingOut}>
+          <Button variant="secondary" size="sm" onClick={logout} disabled={isLoggingOut || isRoomProgressSaving}>
             <LogOut className="h-4 w-4" />
-            {isLoggingOut ? "Logging out..." : "Logout"}
+            {isLoggingOut ? "Logging out..." : isRoomProgressSaving ? "Saving progress..." : "Logout"}
           </Button>
         </div>
       </header>

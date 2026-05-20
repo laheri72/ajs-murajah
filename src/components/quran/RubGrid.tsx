@@ -68,7 +68,7 @@ export function RubGrid({
                     disabled={isDisabled}
                     onClick={() => onRubClick(unit.rubNumber)}
                     className={cn(
-                      "focus-ring relative flex aspect-square min-h-11 min-w-0 items-center justify-center rounded-md border text-sm font-bold transition active:scale-95",
+                      "focus-ring relative flex aspect-square min-h-11 min-w-0 flex-col items-center justify-center gap-1 rounded-md border px-1 text-sm font-bold transition active:scale-95",
                       isComplete
                         ? "border-primary bg-primary text-white shadow-sm"
                         : "border-border bg-background text-muted-foreground hover:border-primary hover:bg-white",
@@ -80,20 +80,25 @@ export function RubGrid({
                     aria-pressed={isComplete || isSelected}
                     aria-disabled={isDisabled}
                     aria-busy={isSaving}
-                    aria-label={`Juz ${unit.juzNumber}, Rub ${unit.rubInJuz}`}
-                    title={isLocked ? `Juz ${juzNumber} is locked` : isRubLocked ? "Undo later Juz progress first" : `Rub ${unit.rubNumber}`}
+                    aria-label={`Juz ${unit.juzNumber}, Rub ${unit.rubInJuz}, pages ${getRubPageRange(unit.rubNumber)}`}
+                    title={isLocked ? `Juz ${juzNumber} is locked` : isRubLocked ? "Undo later Juz progress first" : `Rub ${unit.rubNumber}, pages ${getRubPageRange(unit.rubNumber)}`}
                   >
-                    {isLocked ? (
-                      <Lock className="h-4 w-4" />
-                    ) : isSelectedUndo ? (
-                      <Minus className="h-4 w-4" />
-                    ) : isComplete ? (
-                      <Check className="h-4 w-4" />
-                    ) : isSelected ? (
-                      <Plus className="h-4 w-4" />
-                    ) : (
-                      unit.rubInJuz
-                    )}
+                    <span className="grid h-5 place-items-center">
+                      {isLocked ? (
+                        <Lock className="h-4 w-4" />
+                      ) : isSelectedUndo ? (
+                        <Minus className="h-4 w-4" />
+                      ) : isComplete ? (
+                        <Check className="h-4 w-4" />
+                      ) : isSelected ? (
+                        <Plus className="h-4 w-4" />
+                      ) : (
+                        unit.rubInJuz
+                      )}
+                    </span>
+                    <span className={cn("text-[10px] font-medium leading-none", isComplete ? "text-emerald-50" : "text-muted-foreground")}>
+                      Pg {getRubPageRange(unit.rubNumber)}
+                    </span>
                   </button>
                 );
               })}
@@ -103,4 +108,9 @@ export function RubGrid({
       })}
     </div>
   );
+}
+
+function getRubPageRange(rubNumber: number) {
+  const startPage = (rubNumber - 1) * 5 + 1;
+  return `${startPage}-${startPage + 4}`;
 }

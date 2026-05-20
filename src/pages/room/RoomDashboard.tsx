@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, CheckCircle2, Clock, RotateCcw, Save, Target, X } from "lucide-react";
+import { ArrowRight, BookOpen, CheckCircle2, Clock, RotateCcw, Save, Target, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { RubGrid } from "../../components/quran/RubGrid";
 import { EmptyState } from "../../components/states/EmptyState";
@@ -9,6 +9,7 @@ import { Progress } from "../../components/ui/Progress";
 import { apiFetch } from "../../lib/api";
 import { RUB_PER_JUZ, TOTAL_JUZ, TOTAL_RUB } from "../../lib/quran";
 import { formatActivityTitle, formatDateTime, formatPercent } from "../../lib/utils";
+import { useProgressSyncStore } from "../../stores/progress-sync-store";
 import type { RoomDashboardData } from "../../types/domain";
 
 export function RoomDashboard() {
@@ -25,6 +26,7 @@ export function RoomDashboard() {
   const [localCompletedRub, setLocalCompletedRub] = useState<number[] | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const setRoomProgressSaving = useProgressSyncStore((state) => state.setRoomProgressSaving);
 
   const dashboard = useQuery({
     queryKey: ["room-dashboard"],
@@ -96,11 +98,14 @@ export function RoomDashboard() {
   const selectedCompleteCount = selectedRub.filter((rub) => !completedSet.has(rub)).length;
   const selectedUndoCount = selectedCount - selectedCompleteCount;
   const weeklyPercent = data ? Math.min(100, (data.stats.weeklyCompleted / Math.max(1, data.stats.weeklyTarget)) * 100) : 0;
+  const completedJuz = data ? Math.floor(data.stats.totalCompleted / RUB_PER_JUZ) : 0;
+  const targetJuz = data ? Math.ceil(data.stats.totalTarget / RUB_PER_JUZ) : TOTAL_JUZ;
 
   function scheduleProgressSync(nextCompletedRub: number[], delay = 800) {
     const sorted = sortRub(nextCompletedRub);
     latestCompletedRub.current = sorted;
     hasUnsavedChanges.current = true;
+    setRoomProgressSaving(true);
     setSyncError(null);
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
@@ -133,6 +138,7 @@ export function RoomDashboard() {
       if (arraysEqual(payload, latestCompletedRub.current)) {
         hasUnsavedChanges.current = false;
         setLocalCompletedRub(syncedData.completedRub);
+        setRoomProgressSaving(false);
       } else {
         pendingSync.current = true;
       }
@@ -154,6 +160,7 @@ export function RoomDashboard() {
       } else {
         pendingSync.current = false;
         setIsSyncing(false);
+        setRoomProgressSaving(false);
       }
     }
   }
@@ -203,9 +210,10 @@ export function RoomDashboard() {
               <span className="rounded-full bg-white/15 px-3 py-1">{data.room.member_count} members</span>
             </div>
             <h1 className="mt-4 text-3xl font-bold tracking-normal sm:text-4xl">{data.room.name}</h1>
-            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+            <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <HeroStat icon={<CheckCircle2 className="h-4 w-4" />} label="Completed" value={`${data.stats.totalCompleted}/${data.stats.totalTarget}`} />
-              <HeroStat icon={<Target className="h-4 w-4" />} label="Remaining" value={data.stats.remainingTarget} />
+              <HeroStat icon={<BookOpen className="h-4 w-4" />} label="Juz completed" value={`${completedJuz} of ${TOTAL_JUZ}`} />
+              <HeroStat icon={<Target className="h-4 w-4" />} label="Target Juz" value={`${targetJuz} Juz`} />
               <HeroStat icon={<Clock className="h-4 w-4" />} label="This week" value={`${data.stats.weeklyCompleted}/${data.stats.weeklyTarget}`} />
             </div>
           </div>
