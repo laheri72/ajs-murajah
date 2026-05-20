@@ -157,7 +157,7 @@ Small metric cards showing:
 - rooms behind target
 
 ### Progress bar
-Shows room or hostel progress visually.
+Shows room or Maskan progress visually.
 
 ### Quran matrix
 The core tracker UI.
@@ -215,7 +215,7 @@ Shows progress updates in chronological order.
 5. secondary stats
 
 ### Priority order on admin screen
-1. overall hostel completion
+1. overall Maskan completion
 2. rooms behind target
 3. floor-wise performance
 4. room list and filters

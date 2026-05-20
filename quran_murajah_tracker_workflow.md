@@ -145,7 +145,7 @@ Admin can inspect:
 - top rooms
 - slow rooms
 - completion ratios
-- total progress across hostel
+- total progress across Maskan
 
 ---
 

@@ -31,14 +31,14 @@ export function AdminDashboard() {
     <div className="grid gap-5">
       <AdminPageHeader
         title="Overview"
-        description="A focused control center for hostel-wide completion, rooms behind target, floor health, and recent updates."
+        description="A focused control center for Maskan-wide completion, rooms behind target, floor health, and recent updates."
         action={<StatusBadge tone={data.totals.roomsBehindTarget ? "warning" : "success"}>{data.totals.roomsBehindTarget ? `${data.totals.roomsBehindTarget} need follow-up` : "All rooms on track"}</StatusBadge>}
       />
 
       <section className="overflow-hidden rounded-xl border border-emerald-900/10 bg-white shadow-soft">
         <div className="grid gap-5 bg-[linear-gradient(135deg,#064e3b,#047857_56%,#0f766e)] p-5 text-white lg:grid-cols-[1fr_320px]">
           <div>
-            <p className="text-sm font-medium text-emerald-50">Overall hostel completion</p>
+            <p className="text-sm font-medium text-emerald-50">Overall Maskan completion</p>
             <div className="mt-3 flex flex-wrap items-end gap-3">
               <span className="text-5xl font-bold">{formatPercent(data.totals.completionPercentage)}</span>
               <span className="pb-2 text-sm text-emerald-50">{data.totals.completedRub}/{data.totals.possibleRub} Rub' completed</span>
@@ -70,7 +70,7 @@ export function AdminDashboard() {
       </section>
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <AdminStat label="Overall" value={formatPercent(data.totals.completionPercentage)} helper="Hostel target" icon={<CheckCircle2 className="h-5 w-5" />} tone="success" />
+        <AdminStat label="Overall" value={formatPercent(data.totals.completionPercentage)} helper="Maskan target" icon={<CheckCircle2 className="h-5 w-5" />} tone="success" />
         <AdminStat label="Rooms" value={data.totals.rooms} helper={`${data.totals.activeRooms} active`} icon={<DoorOpen className="h-5 w-5" />} />
         <AdminStat label="Floors" value={data.totals.floors} helper="Managed groups" icon={<Building2 className="h-5 w-5" />} />
         <AdminStat label="Behind" value={data.totals.roomsBehindTarget} helper="Weekly follow-up" icon={<TrendingDown className="h-5 w-5" />} tone={data.totals.roomsBehindTarget ? "warning" : "success"} />

@@ -4,7 +4,7 @@
 **Product name:** Quran Murajah Tracker
 
 **Purpose:**
-A room-based Quran revision tracking system for the university hostel (“Maskan”) that helps every room track weekly Quran recitation progress across an academic year, while giving the admin full oversight of targets, analytics, and participation.
+A room-based Quran revision tracking system for the university Maskan (“Maskan”) that helps every room track weekly Quran recitation progress across an academic year, while giving the admin full oversight of targets, analytics, and participation.
 
 **Core principle:**
 Make tracking almost frictionless. The system must support one-click progress updates so room heads can log completion in seconds.
@@ -48,7 +48,7 @@ Without a tracking system, progress becomes hard to verify, difficult to compare
 - Set room member count
 - Configure targets
 - View all analytics and reports
-- Track room progress across the hostel
+- Track room progress across the Maskan
 - Publish reminders or announcements
 
 ### Room Head
@@ -151,7 +151,7 @@ Admin can view:
 - room rankings
 - underperforming rooms
 - weekly trend summary
-- overall hostel completion snapshot
+- overall Maskan completion snapshot
 
 ### 7.5 Goal management
 Admin can define:
@@ -234,7 +234,7 @@ The app will be considered successful if:
 - chart views
 - monthly goal engine
 - exportable reports
-- multi-hostel support
+- multi-Maskan support
 - advanced analytics
 
 ---

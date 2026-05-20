@@ -131,7 +131,7 @@ Reason:
 - avoid plain-text passwords
 - allow password reset through admin later
 
-This keeps the UX simple while still being reasonably safe for a campus-hostel internal tool.
+This keeps the UX simple while still being reasonably safe for a campus-Maskan internal tool.
 
 ---
 
@@ -184,7 +184,7 @@ This stack supports later additions such as:
 - exports
 - monthly goal automation
 - mobile-friendly PWA behavior
-- multi-hostel support
+- multi-Maskan support
 
 ---
 

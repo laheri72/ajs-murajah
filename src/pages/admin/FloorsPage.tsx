@@ -35,7 +35,7 @@ export function FloorsPage() {
 
   return (
     <div className="grid gap-5">
-      <AdminPageHeader title="Floors" description="Create and order hostel floors so room progress can be grouped cleanly." />
+      <AdminPageHeader title="Floors" description="Create and order maskan floors so room progress can be grouped cleanly." />
 
       <section className="grid gap-4 lg:grid-cols-[360px_1fr]">
         <Card>

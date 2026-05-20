@@ -83,7 +83,7 @@ export function RoomDashboard() {
     }
     return null;
   }, [completedSet, unlockedJuz]);
-  const latestCompletedRub = data?.completedRub.at(-1) ?? null;
+  const latestCompletedRub = data?.completedRub[data.completedRub.length - 1] ?? null;
   const selectedCount = selectedRub.length;
   const selectedCompleteCount = selectedRub.filter((rub) => !completedSet.has(rub)).length;
   const selectedUndoCount = selectedCount - selectedCompleteCount;
