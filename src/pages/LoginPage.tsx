@@ -52,7 +52,7 @@ export function LoginPage() {
           <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-primary text-white">
             <Lock className="h-6 w-6" />
           </div>
-          <h1 className="text-2xl font-bold">Quran Murajah Tracker</h1>
+          <h1 className="text-2xl font-bold">Quran Maqarat Tracker</h1>
           <p className="mt-2 text-sm text-muted-foreground">Log in as a Maskan admin or room head.</p>
         </div>
 

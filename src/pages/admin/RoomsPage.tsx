@@ -66,15 +66,15 @@ export function RoomsPage() {
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
               <div>
                 <Label>Room name</Label>
-                <Input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="Room 101" />
+                <Input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
               </div>
               <div>
                 <Label>Username</Label>
-                <Input value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value })} placeholder="room101" />
+                <Input value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value })} />
               </div>
               <div>
                 <Label>Password</Label>
-                <Input type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} placeholder="Temporary password" />
+                <Input type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} />
               </div>
               <div>
                 <Label>Members</Label>
@@ -102,7 +102,7 @@ export function RoomsPage() {
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
-                <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search rooms" className="pl-9" />
+                <Input value={search} onChange={(event) => setSearch(event.target.value)} className="pl-9" aria-label="Search rooms" />
               </div>
               <Select value={floorFilter} onChange={(event) => setFloorFilter(event.target.value)}>
                 <option value="all">All floors</option>
@@ -140,7 +140,7 @@ export function RoomsPage() {
               ))
             ) : (
               <div className="p-4">
-                <EmptyState title="No rooms found" description="Adjust filters or create a new room." />
+                <EmptyState title="No rooms found" />
               </div>
             )}
           </div>

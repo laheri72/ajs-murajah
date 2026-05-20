@@ -12,6 +12,7 @@ import { FloorsPage } from "../pages/admin/FloorsPage";
 import { RoomsPage } from "../pages/admin/RoomsPage";
 import { TargetsPage } from "../pages/admin/TargetsPage";
 import { ActivityPage } from "../pages/admin/ActivityPage";
+import { AdminSettingsPage } from "../pages/admin/AdminSettingsPage";
 import { RoomDashboard } from "../pages/room/RoomDashboard";
 
 export function App() {
@@ -29,7 +30,7 @@ export function App() {
   if (session.isLoading) {
     return (
       <div className="mx-auto max-w-3xl p-4">
-        <LoadingState label="Preparing your dashboard..." />
+        <LoadingState />
       </div>
     );
   }
@@ -46,6 +47,7 @@ export function App() {
         <Route path="/admin/rooms" element={currentUser?.role === "admin" ? <RoomsPage /> : <Navigate to="/room" replace />} />
         <Route path="/admin/targets" element={currentUser?.role === "admin" ? <TargetsPage /> : <Navigate to="/room" replace />} />
         <Route path="/admin/activity" element={currentUser?.role === "admin" ? <ActivityPage /> : <Navigate to="/room" replace />} />
+        <Route path="/admin/account" element={currentUser?.role === "admin" ? <AdminSettingsPage /> : <Navigate to="/room" replace />} />
       </Route>
       <Route path="*" element={<Navigate to={currentUser?.role === "admin" ? "/admin" : currentUser?.role === "room" ? "/room" : "/login"} replace />} />
     </Routes>

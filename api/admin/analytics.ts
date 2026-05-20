@@ -61,6 +61,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       completedRub,
       weeklyCompleted,
       weeklyTarget: target.weekly_rub_target,
+      yearlyTarget: target.yearly_rub_target,
       completionPercentage: percent(completedRub, target.yearly_rub_target),
       behindTarget: weeklyCompleted < target.weekly_rub_target,
     };

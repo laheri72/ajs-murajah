@@ -48,7 +48,7 @@ export function FloorsPage() {
           <form className="grid gap-4" onSubmit={onSubmit}>
             <div>
               <Label>Name</Label>
-              <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Floor 1" />
+              <Input value={name} onChange={(event) => setName(event.target.value)} />
             </div>
             <div>
               <Label>Display order</Label>
@@ -88,7 +88,7 @@ export function FloorsPage() {
                 ))
               ) : (
                 <div className="p-4">
-                  <EmptyState title="No floors yet" description="Create the first Maskan floor." />
+                  <EmptyState title="No floors yet" />
                 </div>
               )}
             </div>

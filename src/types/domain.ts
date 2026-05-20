@@ -68,7 +68,7 @@ export type AdminAnalytics = {
     roomsBehindTarget: number;
   };
   floorPerformance: Array<{ floorId: string; floorName: string; rooms: number; completedRub: number; targetRub: number; completionPercentage: number }>;
-  roomPerformance: Array<{ roomId: string; roomName: string; floorName: string | null; completedRub: number; weeklyCompleted: number; weeklyTarget: number; completionPercentage: number; behindTarget: boolean }>;
+  roomPerformance: Array<{ roomId: string; roomName: string; floorName: string | null; completedRub: number; weeklyCompleted: number; weeklyTarget: number; yearlyTarget: number; completionPercentage: number; behindTarget: boolean }>;
   weeklyTrend: Array<{ day: string; completed: number; undone: number }>;
   activity: ActivityLog[];
 };

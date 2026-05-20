@@ -1,12 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { Activity, BarChart3, Building2, CheckCircle2, DoorOpen, TrendingDown } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { AdminPageHeader } from "../../components/dashboard/AdminPageHeader";
 import { AdminStat } from "../../components/dashboard/AdminStat";
 import { StatusBadge } from "../../components/dashboard/StatusBadge";
 import { EmptyState } from "../../components/states/EmptyState";
-import { LoadingState } from "../../components/states/LoadingState";
 import { Card, CardTitle } from "../../components/ui/Card";
+import { Select } from "../../components/ui/Input";
 import { Progress } from "../../components/ui/Progress";
 import { apiFetch } from "../../lib/api";
 import { RUB_PER_JUZ } from "../../lib/quran";
@@ -14,12 +15,13 @@ import { formatActivityTitle, formatDateTime, formatPercent } from "../../lib/ut
 import type { AdminAnalytics } from "../../types/domain";
 
 export function AdminDashboard() {
+  const [selectedRoomId, setSelectedRoomId] = useState("");
   const analytics = useQuery({
     queryKey: ["admin-analytics"],
     queryFn: () => apiFetch<AdminAnalytics>("/api/admin/analytics"),
   });
 
-  if (analytics.isLoading) return <LoadingState label="Loading admin analytics..." />;
+  if (analytics.isLoading) return <AdminDashboardSkeleton />;
   if (analytics.isError || !analytics.data) return <EmptyState title="Analytics unavailable" description="Check your Supabase connection and try again." />;
 
   const data = analytics.data;
@@ -29,6 +31,8 @@ export function AdminDashboard() {
   const floorLeader = [...data.floorPerformance].sort((a, b) => b.completionPercentage - a.completionPercentage)[0];
   const completedJuz = data.totals.completedRub / RUB_PER_JUZ;
   const possibleJuz = data.totals.possibleRub / RUB_PER_JUZ;
+  const selectedRoom = data.roomPerformance.find((room) => room.roomId === selectedRoomId) ?? data.roomPerformance[0];
+  const weeklyPercentage = selectedRoom ? Math.min(100, (selectedRoom.weeklyCompleted / Math.max(1, selectedRoom.weeklyTarget)) * 100) : 0;
 
   return (
     <div className="grid gap-5">
@@ -99,7 +103,7 @@ export function AdminDashboard() {
                 </LineChart>
               </ResponsiveContainer>
             ) : (
-              <EmptyState title="No weekly activity" description="Room updates will form the trend line." />
+              <EmptyState title="No weekly activity" />
             )}
           </div>
         </Card>
@@ -123,11 +127,44 @@ export function AdminDashboard() {
                 </div>
               ))
             ) : (
-              <EmptyState title="No follow-up needed" description="Every active room is at or above the weekly target." />
+              <EmptyState title="No follow-up needed" />
             )}
           </div>
         </Card>
       </section>
+
+      <Card>
+        <div className="grid gap-3 sm:grid-cols-[1fr_260px] sm:items-center">
+          <CardTitle>Room Analytics</CardTitle>
+          <Select value={selectedRoom?.roomId ?? ""} onChange={(event) => setSelectedRoomId(event.target.value)}>
+            {data.roomPerformance.map((room) => <option key={room.roomId} value={room.roomId}>{room.roomName}</option>)}
+          </Select>
+        </div>
+        {selectedRoom ? (
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+            <div className="rounded-lg border border-border p-4">
+              <div className="mb-2 flex items-center justify-between gap-3 text-sm">
+                <span className="font-semibold">{selectedRoom.roomName}</span>
+                <span className="text-muted-foreground">{formatPercent(selectedRoom.completionPercentage)}</span>
+              </div>
+              <Progress value={selectedRoom.completionPercentage} />
+              <p className="mt-2 text-xs text-muted-foreground">{selectedRoom.completedRub}/{selectedRoom.yearlyTarget} Rub' overall</p>
+            </div>
+            <div className="rounded-lg border border-border p-4">
+              <div className="mb-2 flex items-center justify-between gap-3 text-sm">
+                <span className="font-semibold">Weekly target</span>
+                <span className="text-muted-foreground">{selectedRoom.weeklyCompleted}/{selectedRoom.weeklyTarget}</span>
+              </div>
+              <Progress value={weeklyPercentage} />
+              <p className="mt-2 text-xs text-muted-foreground">{selectedRoom.floorName ?? "No floor assigned"}</p>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-4">
+            <EmptyState title="No room data" />
+          </div>
+        )}
+      </Card>
 
       <section className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
         <Card>
@@ -145,7 +182,7 @@ export function AdminDashboard() {
                 </div>
               ))
             ) : (
-              <EmptyState title="No floors yet" description="Create floors to see floor performance." />
+              <EmptyState title="No floors yet" />
             )}
           </div>
         </Card>
@@ -167,7 +204,7 @@ export function AdminDashboard() {
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <EmptyState title="No room data" description="Add rooms and progress to see rankings." />
+              <EmptyState title="No room data" />
             )}
           </div>
         </Card>
@@ -190,7 +227,7 @@ export function AdminDashboard() {
             ))
           ) : (
             <div className="p-4">
-              <EmptyState title="No activity yet" description="Admin and room actions will appear here." />
+              <EmptyState title="No activity yet" />
             </div>
           )}
         </div>
@@ -204,6 +241,25 @@ function HeroMini({ label, value }: { label: string; value: string | number }) {
     <div className="rounded-lg bg-white/12 p-3 backdrop-blur">
       <p className="text-xs text-emerald-50">{label}</p>
       <p className="mt-1 text-xl font-bold">{value}</p>
+    </div>
+  );
+}
+
+function AdminDashboardSkeleton() {
+  return (
+    <div className="grid gap-5">
+      <div className="h-72 animate-pulse rounded-xl bg-muted" />
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <div className="h-28 animate-pulse rounded-lg bg-muted" />
+        <div className="h-28 animate-pulse rounded-lg bg-muted" />
+        <div className="h-28 animate-pulse rounded-lg bg-muted" />
+        <div className="h-28 animate-pulse rounded-lg bg-muted" />
+        <div className="h-28 animate-pulse rounded-lg bg-muted" />
+      </div>
+      <div className="grid gap-4 xl:grid-cols-2">
+        <div className="h-80 animate-pulse rounded-xl bg-muted" />
+        <div className="h-80 animate-pulse rounded-xl bg-muted" />
+      </div>
     </div>
   );
 }

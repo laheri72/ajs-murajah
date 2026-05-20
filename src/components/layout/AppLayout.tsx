@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { BedDouble, Building2, ClipboardList, Home, LogOut, Target } from "lucide-react";
+import { BedDouble, Building2, ClipboardList, Home, KeyRound, LogOut, Target } from "lucide-react";
 import { useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { apiFetch } from "../../lib/api";
@@ -13,6 +13,7 @@ const adminNav = [
   { to: "/admin/rooms", label: "Rooms", icon: BedDouble },
   { to: "/admin/targets", label: "Targets", icon: Target },
   { to: "/admin/activity", label: "Activity", icon: ClipboardList },
+  { to: "/admin/account", label: "Account", icon: KeyRound },
 ];
 
 export function AppLayout() {
@@ -51,7 +52,7 @@ export function AppLayout() {
       <header className="sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3">
           <Link to={isAdmin ? "/admin" : "/room"} className="min-w-0">
-            <p className="text-base font-bold text-primary">Quran Murajah Tracker</p>
+            <p className="text-base font-bold text-primary">Quran Maqarat Tracker</p>
             <p className="truncate text-xs text-muted-foreground">{user?.role === "room" ? user.roomName : "Maskan Admin"}</p>
           </Link>
           <Button variant="secondary" size="sm" onClick={logout} disabled={isLoggingOut}>
@@ -95,7 +96,7 @@ export function AppLayout() {
       </div>
 
       {isAdmin ? (
-        <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-border bg-white md:hidden">
+        <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 border-t border-border bg-white md:hidden">
           {adminNav.map((item) => (
             <NavLink key={item.to} to={item.to} end={item.to === "/admin"} className={({ isActive }) => cn("grid place-items-center gap-1 px-1 py-2 text-[11px]", isActive ? "text-primary" : "text-muted-foreground")}>
               <item.icon className="h-5 w-5" />

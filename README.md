@@ -1,6 +1,6 @@
-# Quran Murajah Tracker
+# Quran Maqarat Tracker
 
-A production-ready MVP for Maskan room-based Quran Murajah tracking. Admins manage floors, rooms, credentials, and targets. Room heads log Quran progress quickly using 120 Rub' units.
+A production-ready MVP for Maskan room-based Quran Maqarat tracking. Admins manage floors, rooms, credentials, and targets. Room heads log Quran progress quickly using 120 Rub' units.
 
 ## Stack
 

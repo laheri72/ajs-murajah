@@ -48,7 +48,7 @@ export function ActivityPage() {
           </div>
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
-            <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search activity" className="pl-9" />
+            <Input value={search} onChange={(event) => setSearch(event.target.value)} className="pl-9" aria-label="Search activity" />
           </div>
           <div className="relative">
             <Filter className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
@@ -80,7 +80,7 @@ export function ActivityPage() {
             ))
           ) : (
             <div className="p-4">
-              <EmptyState title="No activity found" description="Adjust filters or wait for room progress updates." />
+              <EmptyState title="No activity found" />
             </div>
           )}
         </div>
