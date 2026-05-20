@@ -31,11 +31,26 @@ from public.rooms
 join lateral generate_series(1, case when rooms.username = 'room101' then 8 when rooms.username = 'room102' then 4 else 2 end) as series(rub_number) on true
 on conflict (room_id, rub_number) do nothing;
 
-insert into public.progress_entries (room_id, rub_number, action, actor_role, actor_id)
-select room_id, rub_number, 'complete', 'room', room_id from public.room_rub_progress
-on conflict do nothing;
+insert into public.room_progress_sessions (room_id, actor_id, started_at, ended_at, completed_count, completed_rub_numbers)
+select
+  room_id,
+  room_id,
+  min(completed_at),
+  max(completed_at),
+  count(*)::integer,
+  array_agg(rub_number order by rub_number)
+from public.room_rub_progress
+group by room_id;
 
 insert into public.activity_logs (actor_role, actor_id, actor_label, room_id, action, details)
-select 'room', id, name, id, 'seed_progress_created', jsonb_build_object('source', 'seed')
+select
+  'room',
+  rooms.id,
+  rooms.name,
+  rooms.id,
+  'room_progress_session_updated',
+  jsonb_build_object('summary', count(progress.rub_number)::text || ' Rub completed', 'completedCount', count(progress.rub_number), 'source', 'seed')
 from public.rooms
+left join public.room_rub_progress progress on progress.room_id = rooms.id
+group by rooms.id, rooms.name
 on conflict do nothing;

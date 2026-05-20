@@ -6,6 +6,7 @@ import { getRoomDashboard } from "./dashboard.js";
 
 const RUB_PER_JUZ = 4;
 const TOTAL_JUZ = 30;
+const SESSION_WINDOW_MINUTES = 15;
 
 function getJuz(rubNumber: number) {
   return Math.ceil(rubNumber / RUB_PER_JUZ);
@@ -43,6 +44,45 @@ function validateLadderAction(rubNumber: number, completed: Set<number>) {
   return null;
 }
 
+function sortRub(numbers: number[]) {
+  return [...numbers].sort((a, b) => a - b);
+}
+
+function applySessionNetting(existingCompleted: number[], existingUndone: number[], completedRub: number[], undoneRub: number[]) {
+  const completed = new Set(existingCompleted);
+  const undone = new Set(existingUndone);
+
+  for (const rubNumber of completedRub) {
+    undone.delete(rubNumber);
+    completed.add(rubNumber);
+  }
+
+  for (const rubNumber of undoneRub) {
+    completed.delete(rubNumber);
+    undone.add(rubNumber);
+  }
+
+  return {
+    completedRubNumbers: sortRub([...completed]),
+    undoneRubNumbers: sortRub([...undone]),
+  };
+}
+
+function buildSessionDetails(completedRubNumbers: number[], undoneRubNumbers: number[]) {
+  const completedCount = completedRubNumbers.length;
+  const undoneCount = undoneRubNumbers.length;
+  const summaryParts = [];
+  if (completedCount) summaryParts.push(`${completedCount} Rub completed`);
+  if (undoneCount) summaryParts.push(`${undoneCount} Rub corrected`);
+  return {
+    summary: summaryParts.length ? summaryParts.join(", ") : "No net progress changes",
+    completedCount,
+    undoneCount,
+    completedRubNumbers,
+    undoneRubNumbers,
+  };
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return methodNotAllowed(res);
   const session = requireRoom(req, res);
@@ -57,6 +97,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (currentProgress.error) return badRequest(res, currentProgress.error.message);
 
   const completed = new Set((currentProgress.data ?? []).map((row) => row.rub_number));
+  const completedRubNumbers: number[] = [];
+  const undoneRubNumbers: number[] = [];
 
   for (const rubNumber of uniqueRub) {
     const validationError = validateLadderAction(rubNumber, completed);
@@ -64,24 +106,98 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const action = completed.has(rubNumber) ? "undo" : "complete";
     if (action === "undo") {
-      const deleted = await supabase.from("room_rub_progress").delete().eq("room_id", session.id).eq("rub_number", rubNumber);
-      if (deleted.error) return badRequest(res, deleted.error.message);
       completed.delete(rubNumber);
+      undoneRubNumbers.push(rubNumber);
     } else {
-      const inserted = await supabase.from("room_rub_progress").insert({ room_id: session.id, rub_number: rubNumber });
-      if (inserted.error) return badRequest(res, inserted.error.message);
       completed.add(rubNumber);
+      completedRubNumbers.push(rubNumber);
     }
+  }
 
-    await supabase.from("progress_entries").insert({ room_id: session.id, rub_number: rubNumber, action, actor_role: "room", actor_id: session.id });
-    await supabase.from("activity_logs").insert({
-      actor_role: "room",
-      actor_id: session.id,
-      actor_label: session.roomName,
-      room_id: session.id,
-      action: action === "complete" ? "rub_completed" : "rub_undone",
-      details: { rubNumber },
-    });
+  if (undoneRubNumbers.length) {
+    const deleted = await supabase.from("room_rub_progress").delete().eq("room_id", session.id).in("rub_number", undoneRubNumbers);
+    if (deleted.error) return badRequest(res, deleted.error.message);
+  }
+
+  if (completedRubNumbers.length) {
+    const inserted = await supabase.from("room_rub_progress").insert(completedRubNumbers.map((rubNumber) => ({ room_id: session.id, rub_number: rubNumber })));
+    if (inserted.error) return badRequest(res, inserted.error.message);
+  }
+
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const windowStartIso = new Date(now.getTime() - SESSION_WINDOW_MINUTES * 60 * 1000).toISOString();
+  const sessionResult = await supabase
+    .from("room_progress_sessions")
+    .select("id, activity_log_id, completed_rub_numbers, undone_rub_numbers")
+    .eq("room_id", session.id)
+    .gte("ended_at", windowStartIso)
+    .order("ended_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (sessionResult.error) return badRequest(res, sessionResult.error.message);
+
+  const progressSession = sessionResult.data;
+  const netted = applySessionNetting(
+    (progressSession?.completed_rub_numbers ?? []) as number[],
+    (progressSession?.undone_rub_numbers ?? []) as number[],
+    completedRubNumbers,
+    undoneRubNumbers,
+  );
+  const details = buildSessionDetails(netted.completedRubNumbers, netted.undoneRubNumbers);
+  const sessionPayload = {
+    actor_id: session.id,
+    ended_at: nowIso,
+    completed_count: details.completedCount,
+    undone_count: details.undoneCount,
+    completed_rub_numbers: netted.completedRubNumbers,
+    undone_rub_numbers: netted.undoneRubNumbers,
+  };
+
+  const activityPayload = {
+    actor_role: "room",
+    actor_id: session.id,
+    actor_label: session.roomName,
+    room_id: session.id,
+    action: "room_progress_session_updated",
+    details,
+    created_at: nowIso,
+  };
+
+  if (progressSession) {
+    const updatedSession = await supabase.from("room_progress_sessions").update(sessionPayload).eq("id", progressSession.id);
+    if (updatedSession.error) return badRequest(res, updatedSession.error.message);
+
+    if (details.completedCount || details.undoneCount) {
+      if (progressSession.activity_log_id) {
+        const updatedActivity = await supabase.from("activity_logs").update(activityPayload).eq("id", progressSession.activity_log_id);
+        if (updatedActivity.error) return badRequest(res, updatedActivity.error.message);
+      } else {
+        const activity = await supabase.from("activity_logs").insert(activityPayload).select("id").single();
+        if (activity.error) return badRequest(res, activity.error.message);
+        const linkedSession = await supabase.from("room_progress_sessions").update({ activity_log_id: activity.data.id }).eq("id", progressSession.id);
+        if (linkedSession.error) return badRequest(res, linkedSession.error.message);
+      }
+    } else if (progressSession.activity_log_id) {
+      const deletedActivity = await supabase.from("activity_logs").delete().eq("id", progressSession.activity_log_id);
+      if (deletedActivity.error) return badRequest(res, deletedActivity.error.message);
+      const unlinkedSession = await supabase.from("room_progress_sessions").update({ activity_log_id: null }).eq("id", progressSession.id);
+      if (unlinkedSession.error) return badRequest(res, unlinkedSession.error.message);
+    }
+  } else {
+    const createdSession = await supabase
+      .from("room_progress_sessions")
+      .insert({ room_id: session.id, started_at: nowIso, ...sessionPayload })
+      .select("id")
+      .single();
+    if (createdSession.error) return badRequest(res, createdSession.error.message);
+
+    if (details.completedCount || details.undoneCount) {
+      const activity = await supabase.from("activity_logs").insert(activityPayload).select("id").single();
+      if (activity.error) return badRequest(res, activity.error.message);
+      const linkedSession = await supabase.from("room_progress_sessions").update({ activity_log_id: activity.data.id }).eq("id", createdSession.data.id);
+      if (linkedSession.error) return badRequest(res, linkedSession.error.message);
+    }
   }
 
   return json(res, 200, await getRoomDashboard(session.id));

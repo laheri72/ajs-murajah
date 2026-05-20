@@ -19,15 +19,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const supabase = getSupabaseAdmin();
   const weekStart = startOfWeek();
 
-  const [floorsResult, roomsResult, progressResult, weeklyResult, activityResult] = await Promise.all([
+  const [floorsResult, roomsResult, progressResult, weeklyProgressResult, weeklySessionsResult, activityResult] = await Promise.all([
     supabase.from("floors").select("id, name"),
     supabase.from("rooms").select("id, name, floor_id, is_active, floors(id, name), targets(yearly_rub_target, weekly_rub_target)").eq("is_active", true),
-    supabase.from("room_rub_progress").select("room_id, rub_number"),
-    supabase.from("progress_entries").select("room_id, action, created_at").gte("created_at", weekStart),
+    supabase.from("room_rub_progress").select("room_id, rub_number, completed_at"),
+    supabase.from("room_rub_progress").select("room_id, completed_at").gte("completed_at", weekStart),
+    supabase.from("room_progress_sessions").select("completed_count, undone_count, ended_at").gte("ended_at", weekStart),
     supabase.from("activity_logs").select("*").order("created_at", { ascending: false }).limit(10),
   ]);
 
-  const error = floorsResult.error ?? roomsResult.error ?? progressResult.error ?? weeklyResult.error ?? activityResult.error;
+  const error = floorsResult.error ?? roomsResult.error ?? progressResult.error ?? weeklyProgressResult.error ?? weeklySessionsResult.error ?? activityResult.error;
   if (error) return badRequest(res, error.message);
 
   const rooms = (roomsResult.data ?? []) as RoomRow[];
@@ -35,16 +36,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   for (const row of progressResult.data ?? []) completedByRoom.set(row.room_id, (completedByRoom.get(row.room_id) ?? 0) + 1);
 
   const weeklyByRoom = new Map<string, number>();
+  for (const row of weeklyProgressResult.data ?? []) {
+    weeklyByRoom.set(row.room_id, (weeklyByRoom.get(row.room_id) ?? 0) + 1);
+  }
+
   const weeklyTrendMap = new Map<string, { day: string; completed: number; undone: number }>();
-  for (const row of weeklyResult.data ?? []) {
-    const day = new Date(row.created_at).toLocaleDateString(undefined, { weekday: "short" });
+  for (const row of weeklySessionsResult.data ?? []) {
+    const day = new Date(row.ended_at).toLocaleDateString(undefined, { weekday: "short" });
     const existing = weeklyTrendMap.get(day) ?? { day, completed: 0, undone: 0 };
-    if (row.action === "complete") {
-      existing.completed += 1;
-      weeklyByRoom.set(row.room_id, (weeklyByRoom.get(row.room_id) ?? 0) + 1);
-    } else {
-      existing.undone += 1;
-    }
+    existing.completed += row.completed_count ?? 0;
+    existing.undone += row.undone_count ?? 0;
     weeklyTrendMap.set(day, existing);
   }
 

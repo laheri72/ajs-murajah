@@ -75,16 +75,15 @@ export function RubGrid({
                       multiSelect && isSelected && "border-gold bg-gold-soft text-foreground ring-2 ring-gold",
                       isSelectedUndo && "bg-red-50 text-red-700 ring-red-200",
                       (isLocked || isRubLocked) && "cursor-not-allowed border-border bg-muted text-muted-foreground hover:border-border hover:bg-muted",
-                      isSaving && "cursor-wait opacity-80 ring-2 ring-primary/30",
+                      isSaving && "cursor-wait ring-2 ring-primary/30",
                     )}
                     aria-pressed={isComplete || isSelected}
                     aria-disabled={isDisabled}
+                    aria-busy={isSaving}
                     aria-label={`Juz ${unit.juzNumber}, Rub ${unit.rubInJuz}`}
                     title={isLocked ? `Juz ${juzNumber} is locked` : isRubLocked ? "Undo later Juz progress first" : `Rub ${unit.rubNumber}`}
                   >
-                    {isSaving ? (
-                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                    ) : isLocked ? (
+                    {isLocked ? (
                       <Lock className="h-4 w-4" />
                     ) : isSelectedUndo ? (
                       <Minus className="h-4 w-4" />

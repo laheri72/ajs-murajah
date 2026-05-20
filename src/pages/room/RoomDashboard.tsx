@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, CheckCircle2, Clock, RotateCcw, Save, Target, X } from "lucide-react";
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { RubGrid } from "../../components/quran/RubGrid";
 import { EmptyState } from "../../components/states/EmptyState";
 import { LoadingState } from "../../components/states/LoadingState";
@@ -9,13 +9,16 @@ import { Card, CardHeader, CardTitle } from "../../components/ui/Card";
 import { Progress } from "../../components/ui/Progress";
 import { apiFetch } from "../../lib/api";
 import { RUB_PER_JUZ, TOTAL_JUZ, TOTAL_RUB } from "../../lib/quran";
-import { formatDateTime, formatPercent } from "../../lib/utils";
+import { formatActivityTitle, formatDateTime, formatPercent } from "../../lib/utils";
 import type { RoomDashboardData } from "../../types/domain";
 
 export function RoomDashboard() {
   const queryClient = useQueryClient();
+  const pendingMutationCount = useRef(0);
+  const serverMutationQueue = useRef<Promise<unknown>>(Promise.resolve());
   const [multiSelect, setMultiSelect] = useState(false);
   const [selectedRub, setSelectedRub] = useState<number[]>([]);
+  const [savingRub, setSavingRub] = useState<number[]>([]);
 
   const dashboard = useQuery({
     queryKey: ["room-dashboard"],
@@ -23,34 +26,41 @@ export function RoomDashboard() {
   });
 
   const progress = useMutation({
-    mutationFn: (rubNumbers: number[]) => apiFetch<RoomDashboardData>("/api/room/progress", { method: "POST", body: JSON.stringify({ rubNumbers }) }),
+    mutationFn: (rubNumbers: number[]) => {
+      const run = serverMutationQueue.current
+        .catch(() => undefined)
+        .then(() => apiFetch<RoomDashboardData>("/api/room/progress", { method: "POST", body: JSON.stringify({ rubNumbers }) }));
+      serverMutationQueue.current = run.catch(() => undefined);
+      return run;
+    },
     onMutate: async (rubNumbers) => {
+      pendingMutationCount.current += 1;
+      setSavingRub((current) => [...new Set([...current, ...rubNumbers])]);
       await queryClient.cancelQueries({ queryKey: ["room-dashboard"] });
       const previous = queryClient.getQueryData<RoomDashboardData>(["room-dashboard"]);
       if (previous) {
-        const next = new Set(previous.completedRub);
-        rubNumbers.forEach((rub) => (next.has(rub) ? next.delete(rub) : next.add(rub)));
-        const totalCompleted = next.size;
-        queryClient.setQueryData<RoomDashboardData>(["room-dashboard"], {
-          ...previous,
-          completedRub: [...next].sort((a, b) => a - b),
-          stats: {
-            ...previous.stats,
-            totalCompleted,
-            completionPercentage: (totalCompleted / (previous.stats.totalTarget || TOTAL_RUB)) * 100,
-            remainingTarget: Math.max(0, previous.stats.totalTarget - totalCompleted),
-          },
-        });
+        queryClient.setQueryData<RoomDashboardData>(["room-dashboard"], toggleDashboardRub(previous, rubNumbers));
       }
       return { previous };
     },
     onError: (_error, _rubNumbers, context) => {
-      if (context?.previous) queryClient.setQueryData(["room-dashboard"], context.previous);
+      if (!context?.previous) return;
+      if (pendingMutationCount.current <= 1) {
+        queryClient.setQueryData(["room-dashboard"], context.previous);
+        return;
+      }
+      queryClient.setQueryData<RoomDashboardData>(["room-dashboard"], (current) => (current ? toggleDashboardRub(current, _rubNumbers) : context.previous));
     },
-    onSuccess: (data) => {
-      queryClient.setQueryData(["room-dashboard"], data);
+    onSuccess: () => {
       setSelectedRub([]);
       setMultiSelect(false);
+    },
+    onSettled: (_data, _error, rubNumbers) => {
+      pendingMutationCount.current = Math.max(0, pendingMutationCount.current - 1);
+      setSavingRub((current) => current.filter((rub) => !rubNumbers.includes(rub)));
+      if (pendingMutationCount.current === 0) {
+        queryClient.invalidateQueries({ queryKey: ["room-dashboard"] });
+      }
     },
   });
 
@@ -88,7 +98,6 @@ export function RoomDashboard() {
   const selectedCompleteCount = selectedRub.filter((rub) => !completedSet.has(rub)).length;
   const selectedUndoCount = selectedCount - selectedCompleteCount;
   const weeklyPercent = data ? Math.min(100, (data.stats.weeklyCompleted / Math.max(1, data.stats.weeklyTarget)) * 100) : 0;
-  const savingRub = progress.isPending ? progress.variables ?? [] : [];
 
   function handleRubClick(rub: number) {
     const juz = Math.ceil(rub / RUB_PER_JUZ);
@@ -217,7 +226,7 @@ export function RoomDashboard() {
             activity.map((item) => (
               <div key={item.id} className="flex items-center justify-between gap-3 p-4">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{item.action.replaceAll("_", " ")}</p>
+                  <p className="truncate text-sm font-medium">{formatActivityTitle(item.action, item.details)}</p>
                   <p className="text-xs text-muted-foreground">{item.actor_label}</p>
                 </div>
                 <p className="shrink-0 text-xs text-muted-foreground">{formatDateTime(item.created_at)}</p>
@@ -232,6 +241,23 @@ export function RoomDashboard() {
       </Card>
     </div>
   );
+}
+
+function toggleDashboardRub(data: RoomDashboardData, rubNumbers: number[]) {
+  const next = new Set(data.completedRub);
+  rubNumbers.forEach((rub) => (next.has(rub) ? next.delete(rub) : next.add(rub)));
+  const totalCompleted = next.size;
+  const totalTarget = data.stats.totalTarget || TOTAL_RUB;
+  return {
+    ...data,
+    completedRub: [...next].sort((a, b) => a - b),
+    stats: {
+      ...data.stats,
+      totalCompleted,
+      completionPercentage: Math.min(100, (totalCompleted / totalTarget) * 100),
+      remainingTarget: Math.max(0, data.stats.totalTarget - totalCompleted),
+    },
+  };
 }
 
 function HeroStat({ icon, label, value }: { icon: ReactNode; label: string; value: ReactNode }) {

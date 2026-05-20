@@ -11,7 +11,7 @@ export async function getRoomDashboard(roomId: string) {
     supabase.from("rooms").select("id, floor_id, name, username, member_count, is_active, created_at, floor:floors(*)").eq("id", roomId).single(),
     supabase.from("targets").select("*").eq("room_id", roomId).maybeSingle(),
     supabase.from("room_rub_progress").select("rub_number").eq("room_id", roomId).order("rub_number"),
-    supabase.from("progress_entries").select("id").eq("room_id", roomId).eq("action", "complete").gte("created_at", weekStart),
+    supabase.from("room_rub_progress").select("id").eq("room_id", roomId).gte("completed_at", weekStart),
     supabase.from("activity_logs").select("*").eq("room_id", roomId).order("created_at", { ascending: false }).limit(10),
   ]);
 

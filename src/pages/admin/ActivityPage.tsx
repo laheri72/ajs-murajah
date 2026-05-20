@@ -9,7 +9,7 @@ import { LoadingState } from "../../components/states/LoadingState";
 import { Card, CardTitle } from "../../components/ui/Card";
 import { Input, Select } from "../../components/ui/Input";
 import { apiFetch } from "../../lib/api";
-import { formatDateTime } from "../../lib/utils";
+import { formatActivityTitle, formatDateTime } from "../../lib/utils";
 import type { ActivityLog } from "../../types/domain";
 
 export function ActivityPage() {
@@ -21,7 +21,8 @@ export function ActivityPage() {
     const term = search.trim().toLowerCase();
     return (activity.data ?? []).filter((item) => {
       const matchesRole = role === "all" || item.actor_role === role;
-      const matchesSearch = !term || item.actor_label.toLowerCase().includes(term) || item.action.toLowerCase().includes(term);
+      const title = formatActivityTitle(item.action, item.details).toLowerCase();
+      const matchesSearch = !term || item.actor_label.toLowerCase().includes(term) || item.action.toLowerCase().includes(term) || title.includes(term);
       return matchesRole && matchesSearch;
     });
   }, [activity.data, role, search]);
@@ -31,7 +32,7 @@ export function ActivityPage() {
 
   return (
     <div className="grid gap-5">
-      <AdminPageHeader title="Activity" description="Audit recent admin changes, room updates, completions, and undo actions." />
+      <AdminPageHeader title="Activity" description="Audit recent admin changes and summarized room progress sessions." />
 
       <section className="grid gap-3 sm:grid-cols-3">
         <AdminStat label="Events" value={activity.data?.length ?? 0} helper="Latest audit entries" icon={<Activity className="h-5 w-5" />} />
@@ -69,7 +70,7 @@ export function ActivityPage() {
               <div key={item.id} className="grid gap-3 p-4 sm:grid-cols-[1fr_auto] sm:items-center">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-semibold">{item.action.replaceAll("_", " ")}</p>
+                    <p className="font-semibold">{formatActivityTitle(item.action, item.details)}</p>
                     <StatusBadge tone={item.actor_role === "admin" ? "warning" : "success"}>{item.actor_role}</StatusBadge>
                   </div>
                   <p className="mt-1 text-sm text-muted-foreground">{item.actor_label}</p>

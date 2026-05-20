@@ -9,7 +9,8 @@ import { LoadingState } from "../../components/states/LoadingState";
 import { Card, CardTitle } from "../../components/ui/Card";
 import { Progress } from "../../components/ui/Progress";
 import { apiFetch } from "../../lib/api";
-import { formatDateTime, formatPercent } from "../../lib/utils";
+import { RUB_PER_JUZ } from "../../lib/quran";
+import { formatActivityTitle, formatDateTime, formatPercent } from "../../lib/utils";
 import type { AdminAnalytics } from "../../types/domain";
 
 export function AdminDashboard() {
@@ -26,6 +27,8 @@ export function AdminDashboard() {
   const roomsBehind = data.roomPerformance.filter((room) => room.behindTarget);
   const topRooms = data.roomPerformance.slice(0, 8);
   const floorLeader = [...data.floorPerformance].sort((a, b) => b.completionPercentage - a.completionPercentage)[0];
+  const completedJuz = data.totals.completedRub / RUB_PER_JUZ;
+  const possibleJuz = data.totals.possibleRub / RUB_PER_JUZ;
 
   return (
     <div className="grid gap-5">
@@ -41,7 +44,7 @@ export function AdminDashboard() {
             <p className="text-sm font-medium text-emerald-50">Overall Maskan completion</p>
             <div className="mt-3 flex flex-wrap items-end gap-3">
               <span className="text-5xl font-bold">{formatPercent(data.totals.completionPercentage)}</span>
-              <span className="pb-2 text-sm text-emerald-50">{data.totals.completedRub}/{data.totals.possibleRub} Rub' completed</span>
+              <span className="pb-2 text-sm text-emerald-50">{formatJuzCount(completedJuz)}/{formatJuzCount(possibleJuz)} Juz completed</span>
             </div>
             <div className="mt-5 max-w-2xl">
               <Progress value={data.totals.completionPercentage} className="bg-emerald-950/40 [&>div]:bg-gold" />
@@ -49,7 +52,7 @@ export function AdminDashboard() {
             <div className="mt-5 grid gap-3 sm:grid-cols-3">
               <HeroMini label="Active rooms" value={data.totals.activeRooms} />
               <HeroMini label="Floors" value={data.totals.floors} />
-              <HeroMini label="Weekly logs" value={weeklyCompleted} />
+              <HeroMini label="Weekly Rub" value={weeklyCompleted} />
             </div>
           </div>
           <div className="rounded-lg bg-white/12 p-4 backdrop-blur">
@@ -179,7 +182,7 @@ export function AdminDashboard() {
             data.activity.map((item) => (
               <div key={item.id} className="flex items-center justify-between gap-3 p-4">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold">{item.action.replaceAll("_", " ")}</p>
+                  <p className="truncate text-sm font-semibold">{formatActivityTitle(item.action, item.details)}</p>
                   <p className="text-xs text-muted-foreground">{item.actor_label}</p>
                 </div>
                 <p className="shrink-0 text-xs text-muted-foreground">{formatDateTime(item.created_at)}</p>
@@ -203,4 +206,8 @@ function HeroMini({ label, value }: { label: string; value: string | number }) {
       <p className="mt-1 text-xl font-bold">{value}</p>
     </div>
   );
+}
+
+function formatJuzCount(value: number) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }

@@ -15,3 +15,10 @@ export function formatDateTime(value: string) {
     timeStyle: "short",
   }).format(new Date(value));
 }
+
+export function formatActivityTitle(action: string, details?: Record<string, unknown>) {
+  if (action === "room_progress_session_updated" && typeof details?.summary === "string") {
+    return details.summary;
+  }
+  return action.replaceAll("_", " ");
+}
