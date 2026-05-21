@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
+import { Footer } from "../components/layout/Footer";
 import { Input, Label } from "../components/ui/Input";
 import { apiFetch } from "../lib/api";
 import { useAuthStore } from "../stores/auth-store";
@@ -46,34 +47,37 @@ export function LoginPage() {
   }
 
   return (
-    <main className="grid min-h-screen place-items-center bg-background px-4 py-8">
-      <Card className="w-full max-w-md p-6">
-        <div className="mb-6">
-          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-primary text-white">
-            <Lock className="h-6 w-6" />
-          </div>
-          <h1 className="text-2xl font-bold">Quran Maqarat Tracker</h1>
-          <p className="mt-2 text-sm text-muted-foreground">Log in as a Maskan admin or room head.</p>
-        </div>
-
-        <form className="grid gap-4" onSubmit={onSubmit}>
-          <div>
-            <Label>Username</Label>
-            <div className="relative">
-              <User className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
-              <Input autoFocus value={username} onChange={(event) => setUsername(event.target.value)} className="pl-9" />
+    <main className="flex min-h-screen flex-col bg-background">
+      <section className="grid flex-1 place-items-center px-4 py-8">
+        <Card className="w-full max-w-md p-6">
+          <div className="mb-6">
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-primary text-white shadow-sm">
+              <Lock className="h-6 w-6" />
             </div>
+            <h1 className="text-2xl font-bold text-foreground">Quran Maqarat Tracker</h1>
+            <p className="mt-2 text-sm text-muted-foreground">Log in as a Maskan admin or room head.</p>
           </div>
-          <div>
-            <Label>Password</Label>
-            <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
-          </div>
-          {login.isError ? <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{login.error.message}</p> : null}
-          <Button type="submit" size="lg" disabled={login.isPending || !username || !password}>
-            {login.isPending ? "Signing in..." : "Sign in"}
-          </Button>
-        </form>
-      </Card>
+
+          <form className="grid gap-4" onSubmit={onSubmit}>
+            <div>
+              <Label>Username</Label>
+              <div className="relative">
+                <User className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
+                <Input autoFocus value={username} onChange={(event) => setUsername(event.target.value)} className="pl-9" />
+              </div>
+            </div>
+            <div>
+              <Label>Password</Label>
+              <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
+            </div>
+            {login.isError ? <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{login.error.message}</p> : null}
+            <Button type="submit" size="lg" disabled={login.isPending || !username || !password}>
+              {login.isPending ? "Signing in..." : "Sign in"}
+            </Button>
+          </form>
+        </Card>
+      </section>
+      <Footer />
     </main>
   );
 }

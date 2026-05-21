@@ -7,6 +7,7 @@ import { cn } from "../../lib/utils";
 import { useAuthStore } from "../../stores/auth-store";
 import { useProgressSyncStore } from "../../stores/progress-sync-store";
 import { Button } from "../ui/Button";
+import { Footer } from "./Footer";
 
 const adminNav = [
   { to: "/admin", label: "Overview", icon: Home },
@@ -64,37 +65,40 @@ export function AppLayout() {
         </div>
       </header>
 
-      <div className={cn("mx-auto grid max-w-7xl gap-4 px-4 py-4", isAdmin ? "md:grid-cols-[220px_1fr]" : "max-w-6xl")}>
-        {isAdmin ? (
-          <aside className="hidden md:block">
-            <div className="sticky top-20 rounded-lg border border-border bg-white p-2 shadow-soft">
-              <div className="px-3 py-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Control Center</p>
+      <div className="flex min-h-[calc(100vh-64px)] flex-col">
+        <div className={cn("mx-auto grid max-w-7xl flex-1 gap-4 px-4 py-4", isAdmin ? "md:grid-cols-[220px_1fr]" : "max-w-6xl")}>
+          {isAdmin ? (
+            <aside className="hidden md:block">
+              <div className="sticky top-20 rounded-lg border border-border bg-white p-2 shadow-soft">
+                <div className="px-3 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Control Center</p>
+                </div>
+                <nav className="grid gap-1">
+                  {adminNav.map((item) => (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      end={item.to === "/admin"}
+                      className={({ isActive }) =>
+                        cn(
+                          "flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground",
+                          isActive && "bg-primary text-white shadow-sm hover:bg-primary hover:text-white",
+                        )
+                      }
+                    >
+                      <item.icon className="h-4 w-4" />
+                      {item.label}
+                    </NavLink>
+                  ))}
+                </nav>
               </div>
-              <nav className="grid gap-1">
-                {adminNav.map((item) => (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    end={item.to === "/admin"}
-                    className={({ isActive }) =>
-                      cn(
-                        "flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground",
-                        isActive && "bg-primary text-white shadow-sm hover:bg-primary hover:text-white",
-                      )
-                    }
-                  >
-                    <item.icon className="h-4 w-4" />
-                    {item.label}
-                  </NavLink>
-                ))}
-              </nav>
-            </div>
-          </aside>
-        ) : null}
-        <main className="min-w-0 pb-20">
-          <Outlet />
-        </main>
+            </aside>
+          ) : null}
+          <main className="min-w-0 pb-24 md:pb-8">
+            <Outlet />
+          </main>
+        </div>
+        <Footer className="mb-20 md:mb-0" />
       </div>
 
       {isAdmin ? (
