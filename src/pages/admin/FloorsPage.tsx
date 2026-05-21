@@ -25,6 +25,8 @@ export function FloorsPage() {
       setSortOrder(0);
       queryClient.invalidateQueries({ queryKey: ["floors"] });
       queryClient.invalidateQueries({ queryKey: ["admin-analytics"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-room-analytics"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-activity"] });
     },
   });
 

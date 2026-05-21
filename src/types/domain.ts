@@ -42,6 +42,25 @@ export type ActivityLog = {
   created_at: string;
 };
 
+export type AdminRoomAnalytics = {
+  roomId: string;
+  roomName: string;
+  floorName: string | null;
+  completedRub: number;
+  weeklyCompleted: number;
+  weeklyTarget: number;
+  yearlyTarget: number;
+  completionPercentage: number;
+  behindTarget: boolean;
+};
+
+export type PaginatedActivityResponse = {
+  items: ActivityLog[];
+  page: number;
+  pageSize: number;
+  total: number;
+};
+
 export type RoomDashboardData = {
   room: Room & { floor: Floor | null };
   target: Target | null;
@@ -68,7 +87,7 @@ export type AdminAnalytics = {
     roomsBehindTarget: number;
   };
   floorPerformance: Array<{ floorId: string; floorName: string; rooms: number; completedRub: number; targetRub: number; completionPercentage: number }>;
-  roomPerformance: Array<{ roomId: string; roomName: string; floorName: string | null; completedRub: number; weeklyCompleted: number; weeklyTarget: number; yearlyTarget: number; completionPercentage: number; behindTarget: boolean }>;
+  topRooms: AdminRoomAnalytics[];
+  roomsBehindPreview: AdminRoomAnalytics[];
   weeklyTrend: Array<{ day: string; completed: number; undone: number }>;
-  activity: ActivityLog[];
 };

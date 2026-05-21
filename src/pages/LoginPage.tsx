@@ -8,7 +8,7 @@ import { Footer } from "../components/layout/Footer";
 import { Input, Label } from "../components/ui/Input";
 import { apiFetch } from "../lib/api";
 import { useAuthStore } from "../stores/auth-store";
-import type { AdminAnalytics, RoomDashboardData, SessionUser } from "../types/domain";
+import type { SessionUser } from "../types/domain";
 
 export function LoginPage() {
   const [username, setUsername] = useState("");
@@ -22,21 +22,6 @@ export function LoginPage() {
     onSuccess: async ({ user }) => {
       setUser(user);
       queryClient.setQueryData(["session"], { user });
-      try {
-        if (user.role === "room") {
-          await queryClient.fetchQuery({
-            queryKey: ["room-dashboard"],
-            queryFn: () => apiFetch<RoomDashboardData>("/api/room/dashboard"),
-          });
-        } else {
-          await queryClient.fetchQuery({
-            queryKey: ["admin-analytics"],
-            queryFn: () => apiFetch<AdminAnalytics>("/api/admin/analytics"),
-          });
-        }
-      } catch {
-        // Let the destination page show its normal error state if preloading fails.
-      }
       navigate(user.role === "admin" ? "/admin" : "/room");
     },
   });

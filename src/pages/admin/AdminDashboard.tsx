@@ -1,11 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Activity, BarChart3, Building2, CheckCircle2, DoorOpen, TrendingDown } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { AdminPageHeader } from "../../components/dashboard/AdminPageHeader";
 import { AdminStat } from "../../components/dashboard/AdminStat";
 import { StatusBadge } from "../../components/dashboard/StatusBadge";
 import { EmptyState } from "../../components/states/EmptyState";
+import { LoadingState } from "../../components/states/LoadingState";
 import { Card, CardTitle } from "../../components/ui/Card";
 import { Select } from "../../components/ui/Input";
 import { Progress } from "../../components/ui/Progress";
@@ -13,7 +14,7 @@ import { apiFetch } from "../../lib/api";
 import { RUB_PER_JUZ } from "../../lib/quran";
 import { cn } from "../../lib/utils";
 import { formatActivityTitle, formatDateTime, formatPercent } from "../../lib/utils";
-import type { AdminAnalytics } from "../../types/domain";
+import type { AdminAnalytics, AdminRoomAnalytics, PaginatedActivityResponse, Room } from "../../types/domain";
 
 export function AdminDashboard() {
   const [selectedRoomId, setSelectedRoomId] = useState("");
@@ -21,18 +22,37 @@ export function AdminDashboard() {
     queryKey: ["admin-analytics"],
     queryFn: () => apiFetch<AdminAnalytics>("/api/admin/analytics"),
   });
+  const rooms = useQuery({
+    queryKey: ["rooms"],
+    queryFn: () => apiFetch<Room[]>("/api/admin/rooms"),
+  });
+  const activity = useQuery({
+    queryKey: ["admin-activity", 1, 10, "all", ""],
+    queryFn: () => apiFetch<PaginatedActivityResponse>("/api/admin/activity?page=1&limit=10"),
+  });
+  const roomAnalytics = useQuery({
+    queryKey: ["admin-room-analytics", selectedRoomId],
+    queryFn: () => apiFetch<AdminRoomAnalytics>(`/api/admin/analytics/room?roomId=${encodeURIComponent(selectedRoomId)}`),
+    enabled: Boolean(selectedRoomId),
+  });
+
+  useEffect(() => {
+    if (!selectedRoomId && rooms.data?.length) {
+      setSelectedRoomId(rooms.data[0].id);
+    }
+  }, [rooms.data, selectedRoomId]);
 
   if (analytics.isLoading) return <AdminDashboardSkeleton />;
   if (analytics.isError || !analytics.data) return <EmptyState title="Analytics unavailable" description="Check your Supabase connection and try again." />;
 
   const data = analytics.data;
   const weeklyCompleted = data.weeklyTrend.reduce((sum, item) => sum + item.completed, 0);
-  const roomsBehind = data.roomPerformance.filter((room) => room.behindTarget);
-  const topRooms = data.roomPerformance.slice(0, 8);
+  const roomsBehind = data.roomsBehindPreview;
+  const topRooms = data.topRooms;
   const floorLeader = [...data.floorPerformance].sort((a, b) => b.completionPercentage - a.completionPercentage)[0];
   const completedJuz = data.totals.completedRub / RUB_PER_JUZ;
   const possibleJuz = data.totals.possibleRub / RUB_PER_JUZ;
-  const selectedRoom = data.roomPerformance.find((room) => room.roomId === selectedRoomId) ?? data.roomPerformance[0];
+  const selectedRoom = roomAnalytics.data;
   const weeklyPercentage = selectedRoom ? Math.min(100, (selectedRoom.weeklyCompleted / Math.max(1, selectedRoom.weeklyTarget)) * 100) : 0;
 
   return (
@@ -82,7 +102,7 @@ export function AdminDashboard() {
         <AdminStat label="Rooms" value={data.totals.rooms} helper={`${data.totals.activeRooms} active`} icon={<DoorOpen className="h-5 w-5" />} />
         <AdminStat label="Floors" value={data.totals.floors} helper="Managed groups" icon={<Building2 className="h-5 w-5" />} />
         <AdminStat label="Behind" value={data.totals.roomsBehindTarget} helper="Weekly follow-up" icon={<TrendingDown className="h-5 w-5" />} tone={data.totals.roomsBehindTarget ? "warning" : "success"} />
-        <AdminStat label="Activity" value={data.activity.length} helper="Recent events" icon={<Activity className="h-5 w-5" />} />
+        <AdminStat label="Activity" value={activity.data?.total ?? 0} helper="Recent events" icon={<Activity className="h-5 w-5" />} />
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
@@ -137,8 +157,8 @@ export function AdminDashboard() {
       <Card>
         <div className="grid gap-3 sm:grid-cols-[1fr_260px] sm:items-center">
           <CardTitle>Room Analytics</CardTitle>
-          <Select value={selectedRoom?.roomId ?? ""} onChange={(event) => setSelectedRoomId(event.target.value)}>
-            {data.roomPerformance.map((room) => <option key={room.roomId} value={room.roomId}>{room.roomName}</option>)}
+          <Select value={selectedRoomId} onChange={(event) => setSelectedRoomId(event.target.value)}>
+            {rooms.data?.map((room) => <option key={room.id} value={room.id}>{room.name}</option>)}
           </Select>
         </div>
         {selectedRoom ? (
@@ -159,6 +179,10 @@ export function AdminDashboard() {
               <Progress value={weeklyPercentage} />
               <p className="mt-2 text-xs text-muted-foreground">{selectedRoom.floorName ?? "No floor assigned"}</p>
             </div>
+          </div>
+        ) : selectedRoomId && roomAnalytics.isLoading ? (
+          <div className="mt-4">
+            <LoadingState />
           </div>
         ) : (
           <div className="mt-4">
@@ -216,8 +240,12 @@ export function AdminDashboard() {
           <CardTitle>Recent Activity</CardTitle>
         </div>
         <div className="divide-y divide-border">
-          {data.activity.length ? (
-            data.activity.map((item) => (
+          {activity.isLoading ? (
+            <div className="p-4">
+              <LoadingState />
+            </div>
+          ) : activity.data?.items.length ? (
+            activity.data.items.map((item) => (
               <div key={item.id} className="flex items-center justify-between gap-3 p-4">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold">{formatActivityTitle(item.action, item.details)}</p>
