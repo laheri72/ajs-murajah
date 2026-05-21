@@ -11,6 +11,7 @@ import { Select } from "../../components/ui/Input";
 import { Progress } from "../../components/ui/Progress";
 import { apiFetch } from "../../lib/api";
 import { RUB_PER_JUZ } from "../../lib/quran";
+import { cn } from "../../lib/utils";
 import { formatActivityTitle, formatDateTime, formatPercent } from "../../lib/utils";
 import type { AdminAnalytics } from "../../types/domain";
 
@@ -248,20 +249,74 @@ function HeroMini({ label, value }: { label: string; value: string | number }) {
 function AdminDashboardSkeleton() {
   return (
     <div className="grid gap-5">
-      <div className="h-72 animate-pulse rounded-xl bg-muted" />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="grid gap-2">
+          <div className="h-3 w-28 animate-pulse rounded-full bg-muted" />
+          <div className="h-8 w-56 animate-pulse rounded-full bg-muted" />
+          <div className="h-4 w-[min(100%,32rem)] animate-pulse rounded-full bg-muted" />
+        </div>
+        <div className="h-8 w-32 animate-pulse rounded-full bg-muted sm:mb-1" />
+      </div>
+
+      <div className="overflow-hidden rounded-xl border border-emerald-900/10 bg-white shadow-soft">
+        <div className="grid gap-6 bg-[linear-gradient(135deg,#064e3b,#047857_56%,#0f766e)] p-5 text-white lg:grid-cols-[1fr_320px]">
+          <div className="grid gap-4">
+            <div className="h-4 w-44 animate-pulse rounded-full bg-white/20" />
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="h-14 w-40 animate-pulse rounded-full bg-white/20" />
+              <div className="h-4 w-56 animate-pulse rounded-full bg-white/20" />
+            </div>
+            <div className="h-3 w-full max-w-2xl animate-pulse rounded-full bg-white/20" />
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="h-20 animate-pulse rounded-lg bg-white/15" />
+              <div className="h-20 animate-pulse rounded-lg bg-white/15" />
+              <div className="h-20 animate-pulse rounded-lg bg-white/15" />
+            </div>
+          </div>
+          <div className="rounded-lg bg-white/10 p-4">
+            <div className="h-4 w-32 animate-pulse rounded-full bg-white/20" />
+            <div className="mt-3 h-7 w-40 animate-pulse rounded-full bg-white/20" />
+            <div className="mt-3 h-4 w-52 animate-pulse rounded-full bg-white/20" />
+            <div className="mt-5 grid gap-2">
+              <div className="h-10 animate-pulse rounded-md bg-white/15" />
+              <div className="h-10 animate-pulse rounded-md bg-white/15" />
+              <div className="h-10 animate-pulse rounded-md bg-white/15" />
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <div className="h-28 animate-pulse rounded-lg bg-muted" />
-        <div className="h-28 animate-pulse rounded-lg bg-muted" />
-        <div className="h-28 animate-pulse rounded-lg bg-muted" />
-        <div className="h-28 animate-pulse rounded-lg bg-muted" />
-        <div className="h-28 animate-pulse rounded-lg bg-muted" />
+        <SkeletonStat />
+        <SkeletonStat />
+        <SkeletonStat />
+        <SkeletonStat />
+        <SkeletonStat />
       </div>
-      <div className="grid gap-4 xl:grid-cols-2">
-        <div className="h-80 animate-pulse rounded-xl bg-muted" />
-        <div className="h-80 animate-pulse rounded-xl bg-muted" />
+
+      <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+        <SkeletonPanel className="h-80" />
+        <SkeletonPanel className="h-80" />
       </div>
+
+      <SkeletonPanel className="h-72" />
+
+      <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+        <SkeletonPanel className="h-80" />
+        <SkeletonPanel className="h-80" />
+      </div>
+
+      <SkeletonPanel className="h-80" />
     </div>
   );
+}
+
+function SkeletonPanel({ className }: { className?: string }) {
+  return <div className={cn("animate-pulse rounded-xl border border-border bg-white shadow-soft", className)} />;
+}
+
+function SkeletonStat() {
+  return <div className="h-28 animate-pulse rounded-lg border border-border bg-white shadow-soft" />;
 }
 
 function formatJuzCount(value: number) {
