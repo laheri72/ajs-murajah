@@ -4,7 +4,6 @@ dist/
 .env.local
 .env.*.local
 .vercel/
-supabase/.temp/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

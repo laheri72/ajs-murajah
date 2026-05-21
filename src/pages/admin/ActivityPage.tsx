@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Activity, Filter, Search } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { AdminPageHeader } from "../../components/dashboard/AdminPageHeader";
 import { AdminStat } from "../../components/dashboard/AdminStat";
 import { StatusBadge } from "../../components/dashboard/StatusBadge";
@@ -10,36 +10,32 @@ import { Card, CardTitle } from "../../components/ui/Card";
 import { Input, Select } from "../../components/ui/Input";
 import { apiFetch } from "../../lib/api";
 import { formatActivityTitle, formatDateTime } from "../../lib/utils";
-import type { PaginatedActivityResponse } from "../../types/domain";
+import type { ActivityLog } from "../../types/domain";
 
 export function ActivityPage() {
   const [search, setSearch] = useState("");
   const [role, setRole] = useState("all");
-  const [page, setPage] = useState(1);
-  const pageSize = 20;
-  const activity = useQuery({
-    queryKey: ["admin-activity", page, pageSize, role, search],
-    queryFn: () => apiFetch<PaginatedActivityResponse>(`/api/admin/activity?page=${page}&limit=${pageSize}&role=${role}&q=${encodeURIComponent(search.trim())}`),
-  });
-
-  useEffect(() => {
-    setPage(1);
-  }, [role, search]);
+  const activity = useQuery({ queryKey: ["activity"], queryFn: () => apiFetch<ActivityLog[]>("/api/admin/activity") });
 
   const filteredActivity = useMemo(() => {
-    return activity.data?.items ?? [];
-  }, [activity.data]);
+    const term = search.trim().toLowerCase();
+    return (activity.data ?? []).filter((item) => {
+      const matchesRole = role === "all" || item.actor_role === role;
+      const title = formatActivityTitle(item.action, item.details).toLowerCase();
+      const matchesSearch = !term || item.actor_label.toLowerCase().includes(term) || item.action.toLowerCase().includes(term) || title.includes(term);
+      return matchesRole && matchesSearch;
+    });
+  }, [activity.data, role, search]);
 
-  const roomEvents = filteredActivity.filter((item) => item.actor_role === "room").length;
-  const adminEvents = filteredActivity.filter((item) => item.actor_role === "admin").length;
-  const totalPages = Math.max(1, Math.ceil((activity.data?.total ?? 0) / pageSize));
+  const roomEvents = (activity.data ?? []).filter((item) => item.actor_role === "room").length;
+  const adminEvents = (activity.data ?? []).filter((item) => item.actor_role === "admin").length;
 
   return (
     <div className="grid gap-5">
       <AdminPageHeader title="Activity" description="Audit recent admin changes and summarized room progress sessions." />
 
       <section className="grid gap-3 sm:grid-cols-3">
-        <AdminStat label="Events" value={activity.data?.total ?? 0} helper="Latest audit entries" icon={<Activity className="h-5 w-5" />} />
+        <AdminStat label="Events" value={activity.data?.length ?? 0} helper="Latest audit entries" icon={<Activity className="h-5 w-5" />} />
         <AdminStat label="Room events" value={roomEvents} helper="Progress activity" />
         <AdminStat label="Admin events" value={adminEvents} helper="Configuration activity" />
       </section>
@@ -48,7 +44,7 @@ export function ActivityPage() {
         <div className="grid gap-3 border-b border-border p-4 lg:grid-cols-[1fr_240px_180px] lg:items-end">
           <div>
             <CardTitle>Audit Log</CardTitle>
-            <p className="mt-1 text-sm text-muted-foreground">{filteredActivity.length} events on this page</p>
+            <p className="mt-1 text-sm text-muted-foreground">{filteredActivity.length} events shown</p>
           </div>
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
@@ -87,14 +83,6 @@ export function ActivityPage() {
               <EmptyState title="No activity found" />
             </div>
           )}
-        </div>
-
-        <div className="flex items-center justify-between gap-3 border-t border-border p-4 text-sm text-muted-foreground">
-          <span>Page {page} of {totalPages}</span>
-          <div className="flex gap-2">
-            <button className="rounded-md border border-border px-3 py-2 disabled:opacity-50" disabled={page <= 1 || activity.isLoading} onClick={() => setPage((current) => Math.max(1, current - 1))}>Previous</button>
-            <button className="rounded-md border border-border px-3 py-2 disabled:opacity-50" disabled={page >= totalPages || activity.isLoading} onClick={() => setPage((current) => current + 1)}>Next</button>
-          </div>
         </div>
       </Card>
     </div>

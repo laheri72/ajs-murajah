@@ -41,8 +41,6 @@ export function RoomsPage() {
       queryClient.invalidateQueries({ queryKey: ["rooms"] });
       queryClient.invalidateQueries({ queryKey: ["targets"] });
       queryClient.invalidateQueries({ queryKey: ["admin-analytics"] });
-      queryClient.invalidateQueries({ queryKey: ["admin-room-analytics"] });
-      queryClient.invalidateQueries({ queryKey: ["admin-activity"] });
     },
   });
 

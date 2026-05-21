@@ -31,8 +31,6 @@ export function TargetsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["targets"] });
       queryClient.invalidateQueries({ queryKey: ["admin-analytics"] });
-      queryClient.invalidateQueries({ queryKey: ["admin-room-analytics"] });
-      queryClient.invalidateQueries({ queryKey: ["admin-activity"] });
     },
   });
 
@@ -41,8 +39,6 @@ export function TargetsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["targets"] });
       queryClient.invalidateQueries({ queryKey: ["admin-analytics"] });
-      queryClient.invalidateQueries({ queryKey: ["admin-room-analytics"] });
-      queryClient.invalidateQueries({ queryKey: ["admin-activity"] });
     },
   });
 

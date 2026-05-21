@@ -38,8 +38,6 @@ export function AppLayout() {
       setUser(null);
       queryClient.setQueryData(["session"], { user: null });
       queryClient.removeQueries({ queryKey: ["admin-analytics"] });
-    queryClient.removeQueries({ queryKey: ["admin-room-analytics"] });
-    queryClient.removeQueries({ queryKey: ["admin-activity"] });
       queryClient.removeQueries({ queryKey: ["room-dashboard"] });
       queryClient.removeQueries({ queryKey: ["rooms"] });
       queryClient.removeQueries({ queryKey: ["floors"] });
