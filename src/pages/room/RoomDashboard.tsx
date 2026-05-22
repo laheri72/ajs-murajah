@@ -1,20 +1,21 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, BookOpen, CheckCircle2, Clock, RotateCcw, Save, Target, X } from "lucide-react";
+import { ArrowRight, CheckCircle2, Clock, RotateCcw, Save } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { RubGrid } from "../../components/quran/RubGrid";
 import { EmptyState } from "../../components/states/EmptyState";
 import { Button } from "../../components/ui/Button";
-import { Card, CardHeader, CardTitle } from "../../components/ui/Card";
+import { Card, CardTitle } from "../../components/ui/Card";
 import { Progress } from "../../components/ui/Progress";
 import { apiFetch } from "../../lib/api";
 import { RUB_PER_JUZ, TOTAL_JUZ, TOTAL_RUB } from "../../lib/quran";
-import { formatActivityTitle, formatDateTime, formatPercent } from "../../lib/utils";
+import { cn, formatActivityTitle, formatDateTime, formatPercent } from "../../lib/utils";
 import { useProgressSyncStore } from "../../stores/progress-sync-store";
 import type { RoomDashboardData } from "../../types/domain";
 
 export function RoomDashboard() {
   const queryClient = useQueryClient();
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cueTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const syncInFlight = useRef(false);
   const pendingSync = useRef(false);
   const hasUnsavedChanges = useRef(false);
@@ -26,6 +27,7 @@ export function RoomDashboard() {
   const [localCompletedRub, setLocalCompletedRub] = useState<number[] | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [completionCue, setCompletionCue] = useState<{ rubNumber: number; label: string } | null>(null);
   const setRoomProgressSaving = useProgressSyncStore((state) => state.setRoomProgressSaving);
 
   const dashboard = useQuery({
@@ -57,6 +59,7 @@ export function RoomDashboard() {
     return () => {
       document.removeEventListener("visibilitychange", flushBeforeLeaving);
       if (saveTimer.current) clearTimeout(saveTimer.current);
+      if (cueTimer.current) clearTimeout(cueTimer.current);
     };
   }, []);
 
@@ -93,6 +96,36 @@ export function RoomDashboard() {
     }
     return null;
   }, [completedSet, unlockedJuz]);
+  const activeJuzUnits = useMemo(
+    () =>
+      Array.from({ length: RUB_PER_JUZ }, (_, index) => {
+        const rubNumber = (unlockedJuz - 1) * RUB_PER_JUZ + index + 1;
+        return {
+          rubNumber,
+          juzNumber: unlockedJuz,
+          rubInJuz: index + 1,
+        };
+      }),
+    [unlockedJuz],
+  );
+  const nextRubUnit = useMemo(
+    () =>
+      nextRub
+        ? {
+            rubNumber: nextRub,
+            juzNumber: Math.ceil(nextRub / RUB_PER_JUZ),
+            rubInJuz: ((nextRub - 1) % RUB_PER_JUZ) + 1,
+          }
+        : null,
+    [nextRub],
+  );
+  const activeJuzCompletedCount = activeJuzUnits.filter((unit) => completedSet.has(unit.rubNumber)).length;
+  const completedJuzList = useMemo(() => {
+    return Array.from({ length: TOTAL_JUZ }, (_, index) => index + 1).filter((juz) => {
+      const start = (juz - 1) * RUB_PER_JUZ + 1;
+      return Array.from({ length: RUB_PER_JUZ }, (_, offset) => start + offset).every((rub) => completedSet.has(rub));
+    });
+  }, [completedSet]);
   const latestCompletedRubNumber = data?.completedRub[data.completedRub.length - 1] ?? null;
   const selectedCount = selectedRub.length;
   const selectedCompleteCount = selectedRub.filter((rub) => !completedSet.has(rub)).length;
@@ -100,6 +133,8 @@ export function RoomDashboard() {
   const weeklyPercent = data ? Math.min(100, (data.stats.weeklyCompleted / Math.max(1, data.stats.weeklyTarget)) * 100) : 0;
   const completedJuz = data ? Math.floor(data.stats.totalCompleted / RUB_PER_JUZ) : 0;
   const targetJuz = data ? Math.ceil(data.stats.totalTarget / RUB_PER_JUZ) : TOTAL_JUZ;
+  const latestActivity = activity[0] ?? null;
+  const lastUpdatedLabel = latestActivity ? formatDateTime(latestActivity.created_at) : "No recent activity";
 
   function scheduleProgressSync(nextCompletedRub: number[], delay = 800) {
     const sorted = sortRub(nextCompletedRub);
@@ -111,6 +146,17 @@ export function RoomDashboard() {
     saveTimer.current = setTimeout(() => {
       flushProgressSync();
     }, delay);
+  }
+
+  function showCompletionCue(rubNumber: number) {
+    if (cueTimer.current) clearTimeout(cueTimer.current);
+    setCompletionCue({ rubNumber, label: `Rub ${rubNumber} completed` });
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+      navigator.vibrate(12);
+    }
+    cueTimer.current = setTimeout(() => {
+      setCompletionCue(null);
+    }, 1600);
   }
 
   async function flushProgressSync() {
@@ -167,7 +213,10 @@ export function RoomDashboard() {
 
   function applyLocalRubChange(rubNumbers: number[], flushDelay = 800) {
     setLocalCompletedRub((current) => {
-      const next = toggleRubNumbers(current ?? data?.completedRub ?? [], rubNumbers);
+      const previous = current ?? data?.completedRub ?? [];
+      const next = toggleRubNumbers(previous, rubNumbers);
+      const addedRub = next.find((rub) => !previous.includes(rub) && rubNumbers.includes(rub));
+      if (addedRub) showCompletionCue(addedRub);
       scheduleProgressSync(next, flushDelay);
       return next;
     });
@@ -203,18 +252,104 @@ export function RoomDashboard() {
   return (
     <div className="grid gap-5">
       <section className="overflow-hidden rounded-xl border border-emerald-900/10 bg-white shadow-soft">
-        <div className="grid gap-5 bg-[linear-gradient(135deg,#064e3b,#047857_54%,#0f766e)] p-5 text-white lg:grid-cols-[1fr_300px]">
+        <div className="grid gap-5 bg-[linear-gradient(135deg,#064e3b,#047857_54%,#0f766e)] p-5 text-white lg:grid-cols-[minmax(0,1fr)_320px]">
           <div>
             <div className="flex flex-wrap items-center gap-2 text-sm text-emerald-50">
               <span className="rounded-full bg-white/15 px-3 py-1">{data.room.floor?.name ?? "No floor assigned"}</span>
               <span className="rounded-full bg-white/15 px-3 py-1">{data.room.member_count} members</span>
             </div>
-            <h1 className="mt-4 text-3xl font-bold tracking-normal sm:text-4xl">{data.room.name}</h1>
-            <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <HeroStat icon={<CheckCircle2 className="h-4 w-4" />} label="Completed" value={`${data.stats.totalCompleted}/${data.stats.totalTarget}`} />
-              <HeroStat icon={<BookOpen className="h-4 w-4" />} label="Juz completed" value={`${completedJuz} of ${TOTAL_JUZ}`} />
-              <HeroStat icon={<Target className="h-4 w-4" />} label="Target Juz" value={`${targetJuz} Juz`} />
-              <HeroStat icon={<Clock className="h-4 w-4" />} label="This week" value={`${data.stats.weeklyCompleted}/${data.stats.weeklyTarget}`} />
+            <p className="mt-4 text-xs uppercase tracking-[0.28em] text-emerald-100">Active queue</p>
+            <h1 className="mt-2 text-3xl font-bold tracking-normal sm:text-4xl">{data.room.name}</h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-emerald-50/90">
+              {nextRubUnit
+                ? `You are in Juz ${unlockedJuz}. The next action is Juz ${nextRubUnit.juzNumber} • Rub ${nextRubUnit.rubInJuz}.`
+                : "All Rub' are complete. Use Undo or review recent activity if you need to adjust progress."}
+            </p>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(240px,290px)]">
+              <div className="rounded-2xl bg-white/12 p-4 backdrop-blur">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.22em] text-emerald-100">Current active Juz</p>
+                    <p className="mt-1 text-3xl font-bold">Juz {unlockedJuz}</p>
+                    <p className="mt-1 text-sm text-emerald-50">{activeJuzCompletedCount}/4 Rub' completed in this Juz</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs uppercase tracking-[0.22em] text-emerald-100">Focus Rub</p>
+                    <p className="mt-1 text-2xl font-semibold">{nextRubUnit ? `Rub ${nextRubUnit.rubInJuz}` : "Done"}</p>
+                    <p className="text-sm text-emerald-50">{nextRubUnit ? `Juz ${nextRubUnit.juzNumber}` : "All complete"}</p>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid grid-cols-4 gap-2">
+                  {activeJuzUnits.map((unit) => {
+                    const isComplete = completedSet.has(unit.rubNumber);
+                    const isNext = nextRub === unit.rubNumber;
+                    return (
+                      <button
+                        key={unit.rubNumber}
+                        type="button"
+                        onClick={() => handleRubClick(unit.rubNumber)}
+                        disabled={multiSelect}
+                        className={cn(
+                          "flex min-h-14 flex-col items-center justify-center rounded-xl border px-2 py-2 text-center text-sm font-semibold transition",
+                          isComplete
+                            ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                            : isNext
+                              ? "border-primary bg-white text-primary shadow-sm"
+                              : "border-white/15 bg-white/5 text-emerald-50 hover:bg-white/10",
+                          multiSelect && "cursor-default opacity-90",
+                        )}
+                        aria-label={`Juz ${unit.juzNumber}, Rub ${unit.rubInJuz}`}
+                        title={isComplete ? "Completed" : isNext ? "Next Rub" : `Rub ${unit.rubNumber}`}
+                      >
+                        <span className="text-base">{isComplete ? <CheckCircle2 className="h-4 w-4" /> : unit.rubInJuz}</span>
+                        <span className={cn("mt-1 text-[10px] font-medium", isComplete ? "text-emerald-700" : "text-inherit/80")}>Rub</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-white/12 p-4 backdrop-blur">
+                <p className="text-xs uppercase tracking-[0.22em] text-emerald-100">One-tap action</p>
+                <Button
+                  className="mt-3 w-full justify-between bg-white text-primary hover:bg-emerald-50"
+                  onClick={() => (nextRub ? applyLocalRubChange([nextRub]) : undefined)}
+                  disabled={multiSelect || !nextRub}
+                >
+                  <span>{nextRub ? `Complete Rub ${nextRubUnit?.rubInJuz ?? nextRub}` : "All Rub' completed"}</span>
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  {latestCompletedRubNumber ? (
+                    <Button variant="secondary" onClick={() => applyLocalRubChange([latestCompletedRubNumber])}>
+                      <RotateCcw className="h-4 w-4" />
+                      Undo
+                    </Button>
+                  ) : (
+                    <Button variant="secondary" disabled>
+                      <RotateCcw className="h-4 w-4" />
+                      Undo
+                    </Button>
+                  )}
+                  <Button
+                    variant={multiSelect ? "primary" : "secondary"}
+                    onClick={() => (multiSelect ? (selectedCount ? saveSelectedRub() : closeMultiSelect()) : setMultiSelect(true))}
+                  >
+                    {multiSelect ? <Save className="h-4 w-4" /> : null}
+                    {multiSelect ? (selectedCount ? `Save ${selectedCount}` : "Close") : "Select"}
+                  </Button>
+                </div>
+
+                <div className="mt-3 flex items-center gap-2 text-xs text-emerald-50">
+                  <Clock className="h-3.5 w-3.5" />
+                  <span>Last updated {lastUpdatedLabel}</span>
+                </div>
+                {syncError ? <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{syncError}</p> : null}
+                {isSyncing ? <p className="mt-2 text-xs text-emerald-50">Saving changes...</p> : null}
+              </div>
             </div>
           </div>
 
@@ -230,19 +365,17 @@ export function RoomDashboard() {
             <div className="min-w-0 lg:text-center">
               <p className="text-sm text-emerald-50">Overall target</p>
               <p className="mt-1 text-lg font-semibold">{data.stats.totalCompleted} Rub' done</p>
-              <div className="mt-4 flex flex-wrap gap-2 lg:justify-center">
-                {nextRub ? (
-                  <Button className="bg-white text-primary hover:bg-emerald-50" onClick={() => applyLocalRubChange([nextRub])}>
-                    Rub {nextRub}
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                ) : null}
-                {latestCompletedRubNumber ? (
-                  <Button variant="secondary" onClick={() => applyLocalRubChange([latestCompletedRubNumber])}>
-                    <RotateCcw className="h-4 w-4" />
-                    Undo
-                  </Button>
-                ) : null}
+              <div className="mt-4 grid grid-cols-2 gap-2 text-left">
+                <div className="rounded-lg bg-white/12 p-3">
+                  <p className="text-xs text-emerald-100">Juz completed</p>
+                  <p className="mt-1 text-lg font-semibold">
+                    {completedJuz} of {TOTAL_JUZ}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-white/12 p-3">
+                  <p className="text-xs text-emerald-100">Target Juz</p>
+                  <p className="mt-1 text-lg font-semibold">{targetJuz}</p>
+                </div>
               </div>
             </div>
           </div>
@@ -263,27 +396,58 @@ export function RoomDashboard() {
         </div>
       </section>
 
-      <Card className="p-0">
-        <CardHeader className="sticky top-[69px] z-10 mb-0 items-center border-b border-border bg-white/95 p-4 backdrop-blur">
+      {completionCue ? (
+        <div className="pointer-events-none fixed left-1/2 top-4 z-50 w-[min(92vw,20rem)] -translate-x-1/2 sm:left-auto sm:right-4 sm:top-5 sm:translate-x-0">
+          <div className="rounded-[1.35rem] border border-white/40 bg-white/70 p-3 shadow-[0_18px_50px_rgba(15,23,42,0.18)] backdrop-blur-xl ring-1 ring-white/50 transition-all duration-300 ease-out">
+            <div className="flex items-start gap-3">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-emerald-500/15 text-emerald-700 shadow-inner shadow-white/40">
+                <CheckCircle2 className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-emerald-700">Completed</p>
+                <p className="mt-0.5 text-sm font-semibold text-slate-900">{completionCue.label}</p>
+                <p className="mt-1 text-xs leading-5 text-slate-600">Nice. One more small step kept the streak moving.</p>
+              </div>
+            </div>
+            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-200/80">
+              <div className="h-full w-full origin-left rounded-full bg-gradient-to-r from-emerald-400 via-emerald-500 to-cyan-500 transition-transform duration-[1600ms] ease-linear" style={{ transform: "scaleX(0)" }} />
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <details className="overflow-hidden rounded-xl border border-border bg-white shadow-soft">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 outline-none">
           <div>
-            <CardTitle>Rub' Wise tracking</CardTitle>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {multiSelect ? `${selectedCount} selected` : `complete Juz ${unlockedJuz} to unlock the next Juz`}
-            </p>
+            <CardTitle>Completed archive</CardTitle>
+            <p className="mt-1 text-sm text-muted-foreground">{completedJuzList.length} completed Juz collapsed out of the active flow</p>
           </div>
-          <div className="flex flex-wrap justify-end gap-2">
-            {multiSelect ? (
-              <Button variant="ghost" size="icon" onClick={closeMultiSelect} aria-label="Close multi-select">
-                <X className="h-5 w-5" />
-              </Button>
-            ) : null}
-            <Button variant={multiSelect ? "primary" : "secondary"} onClick={() => (multiSelect ? saveSelectedRub() : setMultiSelect(true))} disabled={multiSelect && !selectedCount}>
-              {multiSelect ? <Save className="h-4 w-4" /> : null}
-              {multiSelect ? `Save ${selectedCount}` : "Select"}
-            </Button>
+          <div className="rounded-full bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-800">{completedJuzList.length}</div>
+        </summary>
+        <div className="border-t border-border p-4">
+          {completedJuzList.length ? (
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+              {completedJuzList.map((juzNumber) => (
+                <div key={juzNumber} className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">
+                  Juz {juzNumber}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState title="No completed Juz yet" description="Completed Juz will move here automatically." />
+          )}
+        </div>
+      </details>
+
+      <details className="overflow-hidden rounded-xl border border-border bg-white shadow-soft">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 outline-none">
+          <div>
+            <CardTitle>Browse full Quran structure</CardTitle>
+            <p className="mt-1 text-sm text-muted-foreground">Expandable reference view for advanced browsing and bulk updates</p>
           </div>
-        </CardHeader>
-        <div className="p-4">
+          <div className="rounded-full bg-muted px-3 py-1 text-sm font-semibold text-foreground">{TOTAL_JUZ} Juz</div>
+        </summary>
+        <div className="border-t border-border p-4">
           {multiSelect && selectedCount ? (
             <div className="mb-4 grid gap-2 rounded-lg border border-gold bg-gold-soft p-3 text-sm sm:grid-cols-3">
               <MiniStat label="Complete" value={selectedCompleteCount} />
@@ -291,11 +455,11 @@ export function RoomDashboard() {
               <MiniStat label="Selected" value={selectedCount} />
             </div>
           ) : null}
-          {syncError ? <p className="mb-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{syncError}</p> : null}
-          {isSyncing ? <p className="mb-3 text-xs text-muted-foreground">Saving changes...</p> : null}
-          <RubGrid completedRub={data.completedRub} selectedRub={selectedRub} multiSelect={multiSelect} lockedJuz={lockedJuz} lockedRub={lockedRub} savingRub={[]} onRubClick={handleRubClick} />
+          <div className="max-h-[72vh] overflow-auto pr-1">
+            <RubGrid completedRub={data.completedRub} selectedRub={selectedRub} multiSelect={multiSelect} lockedJuz={lockedJuz} lockedRub={lockedRub} savingRub={[]} onRubClick={handleRubClick} />
+          </div>
         </div>
-      </Card>
+      </details>
 
       <Card className="p-0">
         <div className="border-b border-border p-4">
@@ -360,18 +524,6 @@ function RoomDashboardSkeleton() {
     <div className="grid gap-5">
       <div className="h-72 animate-pulse rounded-xl bg-muted" />
       <div className="h-[520px] animate-pulse rounded-xl bg-muted" />
-    </div>
-  );
-}
-
-function HeroStat({ icon, label, value }: { icon: ReactNode; label: string; value: ReactNode }) {
-  return (
-    <div className="rounded-lg bg-white/12 p-3 backdrop-blur">
-      <div className="flex items-center gap-2 text-emerald-50">
-        {icon}
-        <span className="text-xs font-medium">{label}</span>
-      </div>
-      <p className="mt-2 text-xl font-bold">{value}</p>
     </div>
   );
 }
