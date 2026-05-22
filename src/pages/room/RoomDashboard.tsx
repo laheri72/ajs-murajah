@@ -16,6 +16,7 @@ export function RoomDashboard() {
   const queryClient = useQueryClient();
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cueTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const milestoneTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const syncInFlight = useRef(false);
   const pendingSync = useRef(false);
   const hasUnsavedChanges = useRef(false);
@@ -28,6 +29,7 @@ export function RoomDashboard() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [completionCue, setCompletionCue] = useState<{ rubNumber: number; label: string } | null>(null);
+  const [milestoneCue, setMilestoneCue] = useState<{ juzNumber: number; label: string } | null>(null);
   const setRoomProgressSaving = useProgressSyncStore((state) => state.setRoomProgressSaving);
 
   const dashboard = useQuery({
@@ -60,6 +62,7 @@ export function RoomDashboard() {
       document.removeEventListener("visibilitychange", flushBeforeLeaving);
       if (saveTimer.current) clearTimeout(saveTimer.current);
       if (cueTimer.current) clearTimeout(cueTimer.current);
+      if (milestoneTimer.current) clearTimeout(milestoneTimer.current);
     };
   }, []);
 
@@ -159,6 +162,17 @@ export function RoomDashboard() {
     }, 1600);
   }
 
+  function showMilestoneCue(juzNumber: number) {
+    if (milestoneTimer.current) clearTimeout(milestoneTimer.current);
+    setMilestoneCue({ juzNumber, label: `Juz ${juzNumber} completed` });
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+      navigator.vibrate([18, 30, 18]);
+    }
+    milestoneTimer.current = setTimeout(() => {
+      setMilestoneCue(null);
+    }, 2400);
+  }
+
   async function flushProgressSync() {
     if (!hasUnsavedChanges.current) return;
     if (saveTimer.current) {
@@ -216,7 +230,9 @@ export function RoomDashboard() {
       const previous = current ?? data?.completedRub ?? [];
       const next = toggleRubNumbers(previous, rubNumbers);
       const addedRub = next.find((rub) => !previous.includes(rub) && rubNumbers.includes(rub));
+      const newlyCompletedJuz = getNewlyCompletedJuz(previous, next);
       if (addedRub) showCompletionCue(addedRub);
+      if (newlyCompletedJuz) showMilestoneCue(newlyCompletedJuz);
       scheduleProgressSync(next, flushDelay);
       return next;
     });
@@ -296,7 +312,7 @@ export function RoomDashboard() {
                           isComplete
                             ? "border-emerald-200 bg-emerald-50 text-emerald-800"
                             : isNext
-                              ? "border-primary bg-white text-primary shadow-sm"
+                              ? "border-sky-200 bg-gradient-to-b from-sky-50 to-cyan-100 text-sky-900 shadow-[0_8px_24px_rgba(14,165,233,0.18)]"
                               : "border-white/15 bg-white/5 text-emerald-50 hover:bg-white/10",
                           multiSelect && "cursor-default opacity-90",
                         )}
@@ -416,6 +432,22 @@ export function RoomDashboard() {
         </div>
       ) : null}
 
+      {milestoneCue ? (
+        <div className="pointer-events-none fixed left-1/2 top-1/2 z-50 w-[min(92vw,24rem)] -translate-x-1/2 -translate-y-1/2">
+          <div className="rounded-[1.75rem] border border-white/45 bg-white/72 p-4 text-center shadow-[0_28px_80px_rgba(15,23,42,0.22)] backdrop-blur-2xl ring-1 ring-white/50">
+            <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-emerald-500/15 text-emerald-700 shadow-inner shadow-white/40">
+              <CheckCircle2 className="h-7 w-7" />
+            </div>
+            <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.28em] text-emerald-700">Milestone reached</p>
+            <h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">{milestoneCue.label}</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">A full Juz is done. Nice steady progress.</p>
+            <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-slate-200/80">
+              <div className="h-full w-full origin-left rounded-full bg-gradient-to-r from-emerald-400 via-emerald-500 to-cyan-500 transition-transform duration-[2400ms] ease-linear" style={{ transform: "scaleX(0)" }} />
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <details className="overflow-hidden rounded-xl border border-border bg-white shadow-soft">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 outline-none">
           <div>
@@ -439,15 +471,15 @@ export function RoomDashboard() {
         </div>
       </details>
 
-      <details className="overflow-hidden rounded-xl border border-border bg-white shadow-soft">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 outline-none">
+      <section className="overflow-hidden rounded-xl border border-border bg-white shadow-soft">
+        <div className="flex items-center justify-between gap-3 border-b border-border p-4">
           <div>
             <CardTitle>Browse full Quran structure</CardTitle>
-            <p className="mt-1 text-sm text-muted-foreground">Expandable reference view for advanced browsing and bulk updates</p>
+            <p className="mt-1 text-sm text-muted-foreground">Reference view for advanced browsing and bulk updates</p>
           </div>
           <div className="rounded-full bg-muted px-3 py-1 text-sm font-semibold text-foreground">{TOTAL_JUZ} Juz</div>
-        </summary>
-        <div className="border-t border-border p-4">
+        </div>
+        <div className="p-4">
           {multiSelect && selectedCount ? (
             <div className="mb-4 grid gap-2 rounded-lg border border-gold bg-gold-soft p-3 text-sm sm:grid-cols-3">
               <MiniStat label="Complete" value={selectedCompleteCount} />
@@ -459,7 +491,7 @@ export function RoomDashboard() {
             <RubGrid completedRub={data.completedRub} selectedRub={selectedRub} multiSelect={multiSelect} lockedJuz={lockedJuz} lockedRub={lockedRub} savingRub={[]} onRubClick={handleRubClick} />
           </div>
         </div>
-      </details>
+      </section>
 
       <Card className="p-0">
         <div className="border-b border-border p-4">
@@ -512,6 +544,17 @@ function withCompletedRub(data: RoomDashboardData, completedRub: number[], lastS
 
 function sortRub(numbers: number[]) {
   return [...numbers].sort((a, b) => a - b);
+}
+
+function getNewlyCompletedJuz(previousCompletedRub: number[], nextCompletedRub: number[]) {
+  for (let juzNumber = 1; juzNumber <= TOTAL_JUZ; juzNumber += 1) {
+    const start = (juzNumber - 1) * RUB_PER_JUZ + 1;
+    const rubs = Array.from({ length: RUB_PER_JUZ }, (_, index) => start + index);
+    const wasComplete = rubs.every((rub) => previousCompletedRub.includes(rub));
+    const isComplete = rubs.every((rub) => nextCompletedRub.includes(rub));
+    if (!wasComplete && isComplete) return juzNumber;
+  }
+  return null;
 }
 
 function arraysEqual(left: number[], right: number[]) {
